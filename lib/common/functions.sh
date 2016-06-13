@@ -931,7 +931,7 @@ configureMySql() {
                 ;;
         esac
     fi
-    errorStat $?
+    #errorStat $?
 }
 configureFOGService() {
     [[ ! -d $servicedst ]] && mkdir -p $servicedst >>$workingdir/error_logs/fog_error_${version}.log 2>&1
