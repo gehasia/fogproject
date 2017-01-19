@@ -639,22 +639,24 @@ installPackages() {
     for x in $packages; do
         case $x in
             mysql)
-                for sqlclient in $sqlclientlist; do
-                    eval $packagelist "$sqlclient" >>$workingdir/error_logs/fog_error_${version}.log 2>&1
-                    if [[ $? -eq 0 ]]; then
-                        x=$sqlclient
-                        break
-                    fi
-                done
+                #for sqlclient in $sqlclientlist; do
+                #    eval $packagelist "$sqlclient" >>$workingdir/error_logs/fog_error_${version}.log 2>&1
+                #    if [[ $? -eq 0 ]]; then
+                #        x=$sqlclient
+                #        break
+                #    fi
+                #done
+                x="MariaDB-client"
                 ;;
             mysql-server)
-                for sqlserver in $sqlserverlist; do
-                    eval $packagelist "$sqlserver" >>$workingdir/error_logs/fog_error_${version}.log 2>&1
-                    if [[ $? -eq 0 ]]; then
-                        x=$sqlserver
-                        break
-                    fi
-                done
+#                for sqlserver in $sqlserverlist; do
+#                    eval $packagelist "$sqlserver" >>$workingdir/error_logs/fog_error_${version}.log 2>&1
+#                    if [[ $? -eq 0 ]]; then
+#                        x=$sqlserver
+#                        break
+#                    fi
+#                done
+		x="MariaDB-server"
                 ;;
             php${php_ver}-json)
                 for json in $jsontest; do
