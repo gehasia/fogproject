@@ -22,27 +22,6 @@
 class StorageGroup extends FOGController
 {
     /**
-     * Stores the total count and returns if it is already
-     * set.
-     *
-     * @var array
-     */
-    private static $_tot = array();
-    /**
-     * Stores the queued count and returns if it is already
-     * set.
-     *
-     * @var array
-     */
-    private static $_queued = array();
-    /**
-     * Stores the used count and returns if it is already
-     * set.
-     *
-     * @var array
-     */
-    private static $_used = array();
-    /**
      * The table for the group info.
      *
      * @var string
@@ -106,7 +85,6 @@ class StorageGroup extends FOGController
                 'StorageNode',
                 array(
                     'storagegroupID' => $this->get('id'),
-                    'maxClients' => range(1, 9999)
                 ),
                 'id'
             )
@@ -122,7 +100,6 @@ class StorageGroup extends FOGController
         $find = array(
             'storagegroupID' => $this->get('id'),
             'id' => $this->get('allnodes'),
-            'maxClients' => range(1, 9999),
             'isEnabled' => 1
         );
         $nodeids = array();
@@ -130,15 +107,12 @@ class StorageGroup extends FOGController
         foreach ((array)self::getClass('StorageNodeManager')
             ->find($find) as &$node
         ) {
-            $testurls[] = sprintf(
-                'http://%s/fog/management/index.php',
-                $node->get('ip')
-            );
+            if ($node->get('maxClients') < 1) {
+                continue;
+            }
             $nodeids[] = $node->get('id');
             unset($node);
         }
-        $test = array_filter(self::$FOGURLRequests->isAvailable($testurls));
-        $nodeids = array_intersect_key($nodeids, $test);
         $this->set('enablednodes', $nodeids);
     }
     /**
@@ -165,10 +139,7 @@ class StorageGroup extends FOGController
      */
     public function getUsedSlots()
     {
-        if (isset(self::$_used['tot'])) {
-            return (int)self::$_used['tot'];
-        }
-        return (int)self::$_used['tot'] = self::getClass('TaskManager')
+        return self::getClass('TaskManager')
             ->count(
                 array(
                     'stateID' => self::getProgressState(),
@@ -184,10 +155,7 @@ class StorageGroup extends FOGController
      */
     public function getQueuedSlots()
     {
-        if (isset(self::$_queued['tot'])) {
-            return (int)self::$_queued['tot'];
-        }
-        return (int)self::$_queued['tot'] = self::getClass('TaskManager')
+        return self::getClass('TaskManager')
             ->count(
                 array(
                     'stateID' => self::getQueuedStates(),
@@ -203,10 +171,7 @@ class StorageGroup extends FOGController
      */
     public function getTotalSupportedClients()
     {
-        if (isset(self::$_tot['tot'])) {
-            return (int)self::$_tot['tot'];
-        }
-        return (int)self::$_tot['tot'] = self::getSubObjectIDs(
+        return self::getSubObjectIDs(
             'StorageNode',
             array('id' => $this->get('enablednodes')),
             'maxClients',
@@ -277,6 +242,9 @@ class StorageGroup extends FOGController
                 array('id' => $this->get($getter))
             ) as &$Node
         ) {
+            if ($Node->get('maxClients') < 1) {
+                continue;
+            }
             if ($winner == null
                 || $Node->getClientLoad() < $winner->getClientLoad()
             ) {

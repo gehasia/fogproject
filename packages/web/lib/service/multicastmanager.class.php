@@ -22,6 +22,12 @@
 class MulticastManager extends FOGService
 {
     /**
+     * Is the host lookup/ping enabled
+     *
+     * @var int
+     */
+    private static $_mcOn = 0;
+    /**
      * Where to get the services sleeptime
      *
      * @var string
@@ -158,6 +164,29 @@ class MulticastManager extends FOGService
     private function _serviceLoop()
     {
         while (true) {
+            if (!isset($nextrun)) {
+                $first = true;
+                $nextrun = self::niceDate()
+                    ->modify(
+                        sprintf(
+                            '+%s second%s',
+                            self::$zzz,
+                            self::$zzz != 1 ? '' : 's'
+                        )
+                    );
+            }
+            if (self::niceDate() < $nextrun && $first === false) {
+                usleep(100000);
+                continue;
+            }
+            $nextrun = self::niceDate()
+                ->modify(
+                    sprintf(
+                        '+%s second%s',
+                        self::$zzz,
+                        self::$zzz != 1 ? '' : 's'
+                    )
+                );
             $this->waitDbReady();
             $queuedStates = self::fastmerge(
                 self::getQueuedStates(),
@@ -168,6 +197,13 @@ class MulticastManager extends FOGService
                 self::getCancelledState()
             );
             try {
+                // Check if status changed.
+                self::$_mcOn = self::getSetting('MULTICASTGLOBALENABLED');
+                if (self::$_mcOn < 1) {
+                    throw new Exception(
+                        _(' * Multicast service is globally disabled')
+                    );
+                }
                 $StorageNodes = $this->checkIfNodeMaster();
                 foreach ((array)$this->checkIfNodeMaster() as &$StorageNode) {
                     $myroot = $StorageNode->get('path');
@@ -288,7 +324,7 @@ class MulticastManager extends FOGService
                                 $KnownTasks,
                                 $RTask->getID()
                             );
-                            self::getClass('MulticastSessionsAssociationManager')
+                            self::getClass('MulticastSessionAssociationManager')
                                 ->destroy(
                                     array('msID' => $RTask->getID())
                                 );
@@ -391,15 +427,10 @@ class MulticastManager extends FOGService
                                 );
                                 continue;
                             }
-                            self::outall(
-                                sprintf(
-                                    " | %s (%s) %s %s.",
-                                    _('Task'),
-                                    $curTask->getID(),
-                                    $curTask->getName(),
-                                    _('has been cleaned')
-                                )
-                            );
+                            $curTask
+                                ->getSess()
+                                ->set('stateID', self::getProgressState())
+                                ->save();
                             self::outall(
                                 sprintf(
                                     " | %s (%s) %s %s.",
@@ -566,6 +597,9 @@ class MulticastManager extends FOGService
             } catch (Exception $e) {
                 self::outall($e->getMessage());
             }
+            if ($first) {
+                $first = false;
+            }
             $tmpTime = self::getSetting(self::$sleeptime);
             if (static::$zzz != $tmpTime) {
                 static::$zzz = $tmpTime ? $tmpTime : 10;
@@ -582,7 +616,6 @@ class MulticastManager extends FOGService
                     )
                 );
             }
-            sleep(static::$zzz);
             $oldCount = $taskCount;
         }
     }

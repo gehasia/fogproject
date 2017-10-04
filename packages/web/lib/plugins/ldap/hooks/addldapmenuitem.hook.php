@@ -50,6 +50,37 @@ class AddLDAPMenuItem extends Hook
      */
     public $node = 'ldap';
     /**
+     * Initialize object.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        parent::__construct();
+        self::$HookManager
+            ->register(
+                'MAIN_MENU_DATA',
+                array(
+                    $this,
+                    'menuData'
+                )
+            )
+            ->register(
+                'SEARCH_PAGES',
+                array(
+                    $this,
+                    'addSearch'
+                )
+            )
+            ->register(
+                'PAGES_WITH_OBJECTS',
+                array(
+                    $this,
+                    'addPageWithObject'
+                )
+            );
+    }
+    /**
      * Sets the menu item into the menu
      *
      * @param mixed $arguments the item to adjust
@@ -58,16 +89,16 @@ class AddLDAPMenuItem extends Hook
      */
     public function menuData($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
-        $this->arrayInsertAfter(
+        self::arrayInsertAfter(
             'storage',
             $arguments['main'],
             $this->node,
             array(
-                _('LDAP Management'),
-                'fa fa-key fa-2x'
+                _('LDAP Servers'),
+                'fa fa-key'
             )
         );
     }
@@ -80,7 +111,7 @@ class AddLDAPMenuItem extends Hook
      */
     public function addSearch($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         array_push($arguments['searchPages'], $this->node);
@@ -94,34 +125,9 @@ class AddLDAPMenuItem extends Hook
      */
     public function addPageWithObject($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         array_push($arguments['PagesWithObjects'], $this->node);
     }
 }
-$AddLDAPMenuItem = new AddLDAPMenuItem();
-$HookManager
-    ->register(
-        'MAIN_MENU_DATA',
-        array(
-            $AddLDAPMenuItem,
-            'menuData'
-        )
-    );
-$HookManager
-    ->register(
-        'SEARCH_PAGES',
-        array(
-            $AddLDAPMenuItem,
-            'addSearch'
-        )
-    );
-$HookManager
-    ->register(
-        'PAGES_WITH_OBJECTS',
-        array(
-            $AddLDAPMenuItem,
-            'addPageWithObject'
-        )
-    );

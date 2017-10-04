@@ -124,11 +124,10 @@ class Plugin extends FOGController
             if ($tmpHash !== $hash) {
                 continue;
             }
-            $_SESSION['fogactiveplugin'] = $name;
             break;
         }
 
-        return $Plugin->_getEntryPoint();
+        return array($name, $Plugin->_getEntryPoint());
     }
     /**
      * Sets/gets the active plugins.
@@ -218,7 +217,7 @@ class Plugin extends FOGController
             );
             if ($matchIcon != false) {
                 $Plugin->_strIcon = sprintf(
-                    '<i class="%s" width="%d" height="%d" alt="%s"></i>',
+                    '<i class="%s fa-2x" width="%d" height="%d" alt="%s"></i>',
                     $fog_plugin['menuicon'],
                     66,
                     66,
@@ -301,6 +300,9 @@ class Plugin extends FOGController
      */
     public function getManager()
     {
+        if (!$this->get('name')) {
+            return parent::getManager();
+        }
         $classManager = sprintf(
             '%sManager',
             $this->get('name')

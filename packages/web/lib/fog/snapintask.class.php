@@ -52,6 +52,38 @@ class SnapinTask extends FOGController
         'snapinID',
     );
     /**
+     * Additional fields
+     *
+     * @var array
+     */
+    protected $additionalFields = array(
+        'snapin',
+        'state',
+        'snapinjob'
+    );
+    /**
+     * Database -> Class field relationships
+     *
+     * @var array
+     */
+    protected $databaseFieldClassRelationships = array(
+        'Snapin' => array(
+            'id',
+            'snapinID',
+            'snapin'
+        ),
+        'TaskState' => array(
+            'id',
+            'stateID',
+            'state'
+        ),
+        'SnapinJob' => array(
+            'id',
+            'jobID',
+            'snapinjob'
+        )
+    );
+    /**
      * Return the snapin job object.
      *
      * @return object
@@ -68,5 +100,23 @@ class SnapinTask extends FOGController
     public function getSnapin()
     {
         return new Snapin($this->get('snapinID'));
+    }
+    /**
+     * Cancels the snapin task.
+     *
+     * @return bool
+     */
+    public function cancel()
+    {
+        return $this->getManager()->cancel($this->get('id'));
+    }
+    /**
+     * Get's the state object.
+     *
+     * @return object
+     */
+    public function getState()
+    {
+        return new TaskState($this->get('stateID'));
     }
 }

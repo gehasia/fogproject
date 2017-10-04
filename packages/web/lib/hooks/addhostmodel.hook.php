@@ -42,6 +42,30 @@ class AddHostModel extends Hook
      */
     public $active = false;
     /**
+     * Initializes object.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        parent::__construct();
+        self::$HookManager
+            ->register(
+                'HOST_DATA',
+                array(
+                    $this,
+                    'hostData'
+                )
+            )
+            ->register(
+                'HOST_HEADER_DATA',
+                array(
+                    $this,
+                    'hostTableHeader'
+                )
+            );
+    }
+    /**
      * The host data to alter.
      *
      * @param mixed $arguments The items to change.
@@ -54,10 +78,10 @@ class AddHostModel extends Hook
         if ($node != 'host') {
             return;
         }
-        $arguments['templates'][5] = '${model}';
-        $arguments['attributes'][5] = array(
-            'widht' => 20,
-            'class' => 'c'
+        $arguments['templates'][] = '${model}';
+        $arguments['attributes'][] = array(
+            'class' => 'c',
+            'width' => '20',
         );
         $items = $arguments['data'];
         $hostnames = array();
@@ -65,16 +89,20 @@ class AddHostModel extends Hook
             $hostnames[] = $data['host_name'];
             unset($data);
         }
-        foreach ((array)self::getClass('HostManager')
-            ->find(
-                array(
-                    'name' => $hostnames
-                )
-            ) as $i => &$Host
-        ) {
-            $Inventory = $Host->get('inventory');
-            $arguments['data'][$i]['model'] = $Inventory
-                ->get('sysproduct');
+        Route::listem(
+            'host',
+            'name',
+            false,
+            array('name' => $hostnames)
+        );
+        $Hosts = json_decode(
+            Route::getData()
+        );
+        $Hosts = $Hosts->hosts;
+        foreach ((array)$Hosts as &$Host) {
+            $arguments['data'][$i]['model'] = $Host
+                ->inventory
+                ->sysproduct;
             unset($Host);
         }
     }
@@ -91,23 +119,6 @@ class AddHostModel extends Hook
         if ($node != 'host') {
             return;
         }
-        $arguments['headerData'][5] = _('Model');
+        $arguments['headerData'][] = _('Model');
     }
 }
-$AddHostModel = new AddHostModel();
-$HookManager
-    ->register(
-        'HOST_DATA',
-        array(
-            $AddHostModel,
-            'hostData'
-        )
-    );
-$HookManager
-    ->register(
-        'HOST_HEADER_DATA',
-        array(
-            $AddHostModel,
-            'hostTableHeader'
-        )
-    );

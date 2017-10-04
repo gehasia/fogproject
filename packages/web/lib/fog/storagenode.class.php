@@ -171,7 +171,8 @@ class StorageNode extends FOGController
     public function getLogfiles()
     {
         $url = sprintf(
-            'http://%s/fog/status/getfiles.php?path=%s',
+            '%s://%s/fog/status/getfiles.php?path=%s',
+            self::$httpproto,
             $this->get('ip'),
             '%s'
         );
@@ -189,7 +190,11 @@ class StorageNode extends FOGController
             $url,
             urlencode(implode(':', $paths))
         );
-        $paths = self::$FOGURLRequests->process($url);
+        $test = self::$FOGURLRequests->isAvailable($url);
+        $test = array_shift($test);
+        if ($test) {
+            $paths = self::$FOGURLRequests->process($url);
+        }
         foreach ((array) $paths as $index => &$response) {
             $tmppath = self::fastmerge(
                 (array) $tmppath,
@@ -211,7 +216,8 @@ class StorageNode extends FOGController
     private function _getData()
     {
         $url = sprintf(
-            'http://%s/fog/status/getfiles.php',
+            '%s://%s/fog/status/getfiles.php',
+            self::$httpproto,
             $this->get('ip')
         );
         $keys = array(
@@ -219,7 +225,9 @@ class StorageNode extends FOGController
             'snapinfiles' => urlencode($this->get('snapinpath'))
         );
         $urls = array();
+        $testurls = array();
         foreach ((array)$keys as $key => &$data) {
+            $testurls[] = $url;
             $urls[] = sprintf(
                 '%s?path=%s',
                 $url,
@@ -227,6 +235,13 @@ class StorageNode extends FOGController
             );
             unset($data);
         }
+        $test = self::$FOGURLRequests->isAvailable($testurls);
+        $testurls = array_filter($test);
+        unset($test);
+        $urls = array_intersect_key(
+            (array)$urls,
+            (array)$testurls
+        );
         $paths = self::$FOGURLRequests->process($urls);
         $pat = '#dev|postdownloadscripts|ssl#';
         $values = array();
@@ -284,6 +299,9 @@ class StorageNode extends FOGController
      */
     public function getClientLoad()
     {
+        if ($this->getUsedSlotCount() + $this->getQueuedSlotCount() < 0) {
+            return 0;
+        }
         return (float) (
             $this->getUsedSlotCount()
             +
@@ -329,7 +347,7 @@ class StorageNode extends FOGController
             return $countTasks;
         }
         $MulticastCount = self::getSubObjectIDs(
-            'MulticastSessionsAssociation',
+            'MulticastSessionAssociation',
             array(
                 'taskID' => self::getSubObjectIDs(
                     'Task',
@@ -365,7 +383,7 @@ class StorageNode extends FOGController
             return $countTasks;
         }
         $MulticastCount = self::getSubObjectIDs(
-            'MulticastSessionsAssociation',
+            'MulticastSessionAssociation',
             array(
                 'taskID' => self::getSubObjectIDs(
                     'Task',

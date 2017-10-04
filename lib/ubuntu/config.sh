@@ -17,17 +17,25 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 [[ -z $repo ]] && repo="php"
-[[ -z $php_ver ]] && php_ver=5
-[[ -z $php_verAdds ]] && php_verAdds="-5.6"
-if [[ $linuxReleaseName == +(*[Bb][Uu][Nn][Tt][Uu]*) ]]; then
-    if [[ -z $php_ver || $php_ver == 5 || $php_ver == '5.6' ]]; then
+[[ -z $packageQuery ]] && packageQuery="dpkg -l \$x | grep '^ii'"
+if [[ $linuxReleaseName == +(*[Bb][Ii][Aa][Nn]*) ]]; then
+    if [[ $OSVersion -gt 8 ]]; then
+        [[ -z $php_ver || $php_ver != "7.0" ]] && php_ver="7.0"
+        [[ -z $php_verAdds ]] && php_verAdds="-7.0"
+    else
+        [[ -z $php_ver ]] && php_ver="5"
+        [[ -z $php_verAdds ]] && php_verAdds="-5.6"
+    fi
+elif [[ $linuxReleaseName == +(*[Uu][Bb][Uu][Nn][Tt][Uu]*|*[Mm][Ii][Nn][Tt]*) ]]; then
+    if [[ -z $php_ver || $php_ver != "7.1" ]]; then
         if [[ $autoaccept != yes ]]; then
             echo " *** Detected a potential need to reinstall apache and php files."
             echo " *** This will remove the /etc/php* and /etc/apache2* directories"
             echo " ***  and remove/purge the apache and php files from this system."
             echo " *** If you're okay with this please type Y, anything else will"
-            echo " ***  break the installation and you will have to remove the files yourself"
-            echo -n " ***  and make proper changes as necessary. (Y/N): "
+            echo " ***  continue the installation, but may mean you will need to"
+            echo " ***  remove the files later and make proper changes as "
+            echo " ***  necessary. (Y/N): "
             read dummy
         else
             dummy="y"
@@ -49,21 +57,21 @@ if [[ $linuxReleaseName == +(*[Bb][Uu][Nn][Tt][Uu]*) ]]; then
                 phpfpm="php${php_ver}-fpm"
                 phpldap="php${php_ver}-ldap"
                 phpcmd="php"
-                packages="apache2 build-essential cpp curl g++ gawk gcc gzip htmldoc isc-dhcp-server lftp libapache2-mod-fastcgi libapache2-mod-php${php_ver} libc6 libcurl3 m4 mysql-client mysql-server net-tools nfs-kernel-server openssh-server $phpfpm php-gettext php${php_ver} php${php_ver}-cli php${php_ver}-curl php${php_ver}-gd php${php_ver}-json $phpldap php${php_ver}-mcrypt php${php_ver}-mysql php${php_ver}-mysqlnd sysv-rc-conf tar tftpd-hpa tftp-hpa vsftpd wget xinetd zlib1g"
+                packages="apache2 build-essential cpp curl g++ gawk gcc genisoimage gzip htmldoc isc-dhcp-server isolinux lftp libapache2-mod-fastcgi libapache2-mod-php${php_ver} libc6 libcurl3 liblzma-dev m4 mysql-client mysql-server net-tools nfs-kernel-server openssh-server $phpfpm php-gettext php${php_ver} php${php_ver}-cli php${php_ver}-curl php${php_ver}-gd php${php_ver}-json $phpldap php${php_ver}-mcrypt php${php_ver}-mysql php${php_ver}-mysqlnd sysv-rc-conf tar tftpd-hpa tftp-hpa vsftpd wget xinetd zlib1g"
                 apt-get clean -yq >/dev/null 2>&1
                 echo "Done"
                 ;;
         esac
     fi
+else
+    [[ -z $php_ver ]] && php_ver=5
+    [[ -z $php_verAdds ]] && php_verAdds="-5.6"
 fi
-if [[ -z $phpcmd ]]; then
-    [[ $php_ver != 5 ]] && phpcmd="php" || phpcmd="php5"
-    [[ -z $phpfpm ]] && phpfpm="php${php_ver}-fpm" || phpfpm="php5-fpm"
-fi
-[[ -z $packageQuery ]] && packageQuery="dpkg -l \$x | grep '^ii'"
+[[ $php_ver != 5 ]] && phpcmd="php" || phpcmd="php5"
+[[ -z $phpfpm ]] && phpfpm="php${php_ver}-fpm"
 case $linuxReleaseName in
-    *[Dd][Ee][Bb][Ii][Aa][Nn]*|*[Bb][Uu][Nn][Tt][Uu]*)
-        [[ -z $packages ]] && packages="apache2 build-essential cpp curl g++ gawk gcc gzip htmldoc isc-dhcp-server lftp libapache2-mod-fastcgi libapache2-mod-php${php_ver} libc6 libcurl3 m4 mysql-client mysql-server net-tools nfs-kernel-server openssh-server $phpfpm php-gettext php${php_ver} php${php_ver}-cli php${php_ver}-curl php${php_ver}-gd php${php_ver}-json $phpldap php${php_ver}-mcrypt php${php_ver}-mysql php${php_ver}-mysqlnd sysv-rc-conf tar tftpd-hpa tftp-hpa vsftpd wget xinetd zlib1g"
+    *[Uu][Bb][Uu][Nn][Tt][Uu]*|*[Bb][Ii][Aa][Nn]*|*[Mm][Ii][Nn][Tt]*)
+        [[ -z $packages ]] && packages="apache2 build-essential cpp curl g++ gawk gcc genisoimage gzip htmldoc isc-dhcp-server isolinux lftp libapache2-mod-fastcgi libapache2-mod-php${php_ver} libc6 libcurl3 liblzma-dev m4 mysql-client mysql-server net-tools nfs-kernel-server openssh-server $phpfpm php-gettext php${php_ver} php${php_ver}-cli php${php_ver}-curl php${php_ver}-gd php${php_ver}-json $phpldap php${php_ver}-mcrypt php${php_ver}-mysql php${php_ver}-mysqlnd sysv-rc-conf tar tftpd-hpa tftp-hpa vsftpd wget xinetd zlib1g"
         [[ -z $packageinstaller ]] && packageinstaller="apt-get -yq install -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold"
         [[ -z $packagelist ]] && packagelist="apt-cache pkgnames | grep"
         [[ -z $packageupdater ]] && packageupdater="apt-get -yq upgrade -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold"
@@ -72,8 +80,8 @@ case $linuxReleaseName in
         [[ -z $olddhcpname ]] && olddhcpname="dhcp3-server"
         ;;
 esac
-[[ $php_ver != 5 ]] && packages="$packages php${php_ver}-mbstring"
 [[ -z $langPackages ]] && langPackages="language-pack-it language-pack-en language-pack-es language-pack-zh-hans"
+[[ $php_ver != 5 ]] && packages="$packages php${php_ver}-mbstring"
 if [[ -z $webdirdest ]]; then
     if [[ -z $docroot ]]; then
         docroot="/var/www/html/"

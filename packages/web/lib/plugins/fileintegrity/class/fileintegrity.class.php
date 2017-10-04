@@ -81,7 +81,7 @@ class FileIntegrity extends FOGController
         foreach ((array)self::getClass('StorageNodeManager')
             ->find(array('isEnabled' => 1)) as &$StorageNode
         ) {
-            $ip = self::$FOGCore->resolveHostname($StorageNode->get('ip'));
+            $ip = self::resolveHostname($StorageNode->get('ip'));
             if (!in_array($ip, self::$ips)) {
                 continue;
             }
@@ -119,7 +119,7 @@ class FileIntegrity extends FOGController
                 sprintf(
                     '%s%s%s',
                     $item,
-                    DIRECTORY_SEPARATOR,
+                    DS,
                     $file
                 )
             );
@@ -157,7 +157,7 @@ class FileIntegrity extends FOGController
         $str = sprintf(
             '%s%s%s',
             $this->get('storagenode')->get('path'),
-            DIRECTORY_SEPARATOR,
+            DS,
             '%s'
         );
         foreach ((array)$imagePaths as &$path) {

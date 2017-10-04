@@ -71,9 +71,6 @@ class EventManager extends FOGBase
                 array_push($this->data[$event], $listener);
                 break;
             case 'HookManager':
-                if (self::$isMobile && !$listener[0]->mobile) {
-                    throw new Exception(_('Not registering to mobile page'));
-                }
                 if (!is_array($listener) || count($listener) !== 2) {
                     throw new Exception(
                         _('Second paramater must be in array(class,function)')
@@ -110,12 +107,15 @@ class EventManager extends FOGBase
                 _('Class'),
                 $listener[0]
             );
-            $this->log($string);
-
-            return false;
+            self::log(
+                $string,
+                $this->logLevel,
+                0,
+                $this,
+                0
+            );
         }
-
-        return true;
+        return $this;
     }
     /**
      * Notifies the system of events.
@@ -129,6 +129,16 @@ class EventManager extends FOGBase
      */
     public function notify($event, $eventData = array())
     {
+        $exists = self::getClass('NotifyEventManager')->exists(
+            $event,
+            '',
+            'name'
+        );
+        if (!$exists) {
+            self::getClass('NotifyEvent')
+                ->set('name', $event)
+                ->save();
+        }
         try {
             if (!is_string($event)) {
                 throw new Exception(_('Event must be a string'));
@@ -158,7 +168,13 @@ class EventManager extends FOGBase
                 _('Event'),
                 $event
             );
-            $this->log($string);
+            self::log(
+                $string,
+                $this->logLevel,
+                0,
+                $this,
+                0
+            );
 
             return false;
         }
@@ -174,13 +190,29 @@ class EventManager extends FOGBase
     {
         // Sets up regex and paths to scan for
         if ($this instanceof self) {
-            $regext = '#^.+/events/.*\.event\.php$#';
-            $dirpath = '/events/';
+            $regext = sprintf(
+                '#^.+%sevents%s.*\.event\.php$#',
+                DS,
+                DS
+            );;
+            $dirpath = sprintf(
+                '%sevents%s',
+                DS,
+                DS
+            );
             $strlen = -strlen('.event.php');
         }
         if ($this instanceof HookManager) {
-            $regext = '#^.+/hooks/.*\.hook\.php$#';
-            $dirpath = '/hooks/';
+            $regext = sprintf(
+                '#^.+%shooks%s.*\.hook\.php$#',
+                DS,
+                DS
+            );
+            $dirpath = sprintf(
+                '%shooks%s',
+                DS,
+                DS
+            );
             $strlen = -strlen('.hook.php');
         }
         // Initiates plugins used in fileitems function
@@ -188,7 +220,11 @@ class EventManager extends FOGBase
         // Function simply returns the files based on the regex and data passed.
         $fileitems = function ($element) use ($dirpath, &$plugins) {
             preg_match(
-                "#^($plugins.+/plugins/)(?=.*$dirpath).*$#",
+                sprintf(
+                    "#^($plugins.+%splugins%s)(?=.*$dirpath).*$#",
+                    DS,
+                    DS
+                ),
                 $element[0],
                 $match
             );
@@ -224,11 +260,13 @@ class EventManager extends FOGBase
         // Second pass we only care about plugins.
         $plugins = '?=';
         $grepString = sprintf(
-            '#/(%s)/#',
+            '#%s(%s)%s#',
+            DS,
             implode(
                 '|',
-                $_SESSION['PluginsInstalled']
-            )
+                self::$pluginsinstalled
+            ),
+            DS
         );
         $tFiles = array_map($fileitems, (array) $files);
         $fFiles = preg_grep($grepString, $tFiles);
@@ -240,8 +278,8 @@ class EventManager extends FOGBase
         // hooks or events.
         // Plugins don't need to know if the active flag is set either
         $startClass = function (&$element) use ($strlen) {
-            $className = preg_replace(
-                '#[[:space:]]#',
+            $className = str_replace(
+                array("\t", "\n", ' '),
                 '_',
                 substr(
                     basename($element),
@@ -262,12 +300,10 @@ class EventManager extends FOGBase
                 return;
             }
             self::getClass(
-                preg_replace(
-                    '#[[:space:]]#',
+                str_replace(
+                    array("\t", "\n", ' '),
                     '_',
-                    $className,
-                    0,
-                    $strlen
+                    $className
                 )
             );
             unset($element, $key);
@@ -298,10 +334,8 @@ class EventManager extends FOGBase
                 }
                 // We get the value and pop the line off and make it set as
                 // a part of the code.
-                preg_match('#(\$active\s?=\s?.*;)#', $line, $linefound);
-                eval(array_pop($linefound));
-                // If the active is not set or is false start over.
-                if (!isset($active) || $active === false) {
+                preg_match('#(\$active\s?=\s?true;)#', $line, $linefound);
+                if (count($linefound) < 1) {
                     continue;
                 }
                 // We are set and active start the class and break from the loop.
@@ -312,9 +346,11 @@ class EventManager extends FOGBase
             fclose($fh);
         };
         // Perform the checks.
-        array_walk(
-            $normalfiles,
-            $checkNormalAndStart
-        );
+        if (count($normalfiles) > 0) {
+            array_walk(
+                $normalfiles,
+                $checkNormalAndStart
+            );
+        }
     }
 }

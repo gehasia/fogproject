@@ -2,8 +2,10 @@
 . /usr/share/fog/lib/funcs.sh
 ### If USB Boot device we need a way to get the kernel args properly
 if [[ $boottype == usb && ! -z $web ]]; then
+    sysuuid=$(dmidecode -s system-uuid)
+    sysuuid=${sysuuid,,}
     mac=$(getMACAddresses)
-    wget -q -O /tmp/hinfo.txt "http://${web}service/hostinfo.php?mac=$mac"
+    curl -Lks -o /tmp/hinfo.txt --data "sysuuid=${sysuuid}&mac=$mac" "${web}service/hostinfo.php" -A ''
     [[ -f /tmp/hinfo.txt ]] && . /tmp/hinfo.txt
 fi
 dots "Running post init scripts"
@@ -63,9 +65,6 @@ if [[ -n $mode && $mode != +(*debug*) && -z $type ]]; then
             ;;
         sysinfo)
             fog.sysinfo
-            ;;
-        "donate.full")
-            fog.donatefull
             ;;
         *)
             handleError "Fatal Error: Unknown mode :: $mode ($0)\n   Args Passed: $*"

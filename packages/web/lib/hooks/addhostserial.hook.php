@@ -42,6 +42,30 @@ class AddHostSerial extends Hook
      */
     public $active = false;
     /**
+     * Initializes object.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        parent::__construct();
+        self::$HookManager
+            ->register(
+                'HOST_DATA',
+                array(
+                    $this,
+                    'hostData'
+                )
+            )
+            ->register(
+                'HOST_HEADER_DATA',
+                array(
+                    $this,
+                    'hostTableHeader'
+                )
+            );
+    }
+    /**
      * The data to alter.
      *
      * @param mixed $arguments The items to alter.
@@ -54,10 +78,10 @@ class AddHostSerial extends Hook
         if ($node != 'host') {
             return;
         }
-        $arguments['templates'][7] = '${serial}';
-        $arguments['attributes'][7] = array(
-            'width' => 20,
-            'class' => 'c'
+        $arguments['templates'][] = '${serial}';
+        $arguments['attributes'][] = array(
+            'class' => 'c',
+            'width' => '20',
         );
         $items = $arguments['data'];
         $hostnames = array();
@@ -65,18 +89,23 @@ class AddHostSerial extends Hook
             $hostnames[] = $data['host_name'];
             unset($data);
         }
-        foreach ((array)self::getClass('HostManager')
-            ->find(
-                array(
-                    'name' => $hostnames
-                )
-            ) as $i => &$Host
-        ) {
-            $Inventory = $Host->get('inventory');
-            $arguments['data'][$i]['serial'] = $Inventory
-                ->get('sysserial');
+        Route::listem(
+            'host',
+            'name',
+            false,
+            array('name' => $hostnames)
+        );
+        $Hosts = json_decode(
+            Route::getData()
+        );
+        $Hosts = $Hosts->hosts;
+        foreach ((array)$Hosts as &$Host) {
+            $arguments['data'][$i]['serial'] = $Host
+                ->inventory
+                ->sysserial;
             unset($Host);
         }
+        unset($Hosts);
     }
     /**
      * Alter the table header data.
@@ -91,23 +120,6 @@ class AddHostSerial extends Hook
         if ($node != 'host') {
             return;
         }
-        $arguments['headerData'][7] = _('Serial');
+        $arguments['headerData'][] = _('Serial');
     }
 }
-$AddHostSerial = new AddHostSerial();
-$HookManager
-    ->register(
-        'HOST_DATA',
-        array(
-            $AddHostSerial,
-            'hostData'
-        )
-    );
-$HookManager
-    ->register(
-        'HOST_HEADER_DATA',
-        array(
-            $AddHostSerial,
-            'hostTableHeader'
-        )
-    );

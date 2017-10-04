@@ -46,6 +46,44 @@ class AddFileIntegrityMenuItem extends Hook
      */
     public $node = 'fileintegrity';
     /**
+     * Initialize object.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        parent::__construct();
+        self::$HookManager
+            ->register(
+                'MAIN_MENU_DATA',
+                array(
+                    $this,
+                    'menuData'
+                )
+            )
+            ->register(
+                'SEARCH_PAGES',
+                array(
+                    $this,
+                    'addSearch'
+                )
+            )
+            ->register(
+                'ACTIONBOX',
+                array(
+                    $this,
+                    'removeActionBox'
+                )
+            )
+            ->register(
+                'PAGES_WITH_OBJECTS',
+                array(
+                    $this,
+                    'addPageWithObject'
+                )
+            );
+    }
+    /**
      * The menu data method
      *
      * @param array $arguments the arguments to enact upon.
@@ -54,16 +92,16 @@ class AddFileIntegrityMenuItem extends Hook
      */
     public function menuData($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
-        $this->arrayInsertAfter(
+        self::arrayInsertAfter(
             'storage',
             $arguments['main'],
             $this->node,
             array(
-                _('File Integrity Management'),
-                'fa fa-list-ol fa-2x'
+                _('Integrity Settings'),
+                'fa fa-list-ol'
             )
         );
     }
@@ -76,7 +114,7 @@ class AddFileIntegrityMenuItem extends Hook
      */
     public function addSearch($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         array_push($arguments['searchPages'], $this->node);
@@ -90,7 +128,7 @@ class AddFileIntegrityMenuItem extends Hook
      */
     public function removeActionBox($arguments)
     {
-        if (in_array($this->node, (array)$_SESSION['PluginsInstalled'])
+        if (in_array($this->node, (array)self::$pluginsinstalled)
             && $_REQUEST['node'] == $this->node
         ) {
             $arguments['actionbox'] = '';
@@ -105,42 +143,9 @@ class AddFileIntegrityMenuItem extends Hook
      */
     public function addPageWithObject($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         array_push($arguments['PagesWithObjects'], $this->node);
     }
 }
-$AddFileIntegrityMenuItem = new AddFileIntegrityMenuItem();
-$HookManager
-    ->register(
-        'MAIN_MENU_DATA',
-        array(
-            $AddFileIntegrityMenuItem,
-            'menuData'
-        )
-    );
-$HookManager
-    ->register(
-        'SEARCH_PAGES',
-        array(
-            $AddFileIntegrityMenuItem,
-            'addSearch'
-        )
-    );
-$HookManager
-    ->register(
-        'ACTIONBOX',
-        array(
-            $AddFileIntegrityItem,
-            'removeActionBox'
-        )
-    );
-$HookManager
-    ->register(
-        'PAGES_WITH_OBJECTS',
-        array(
-            $AddFileIntegrityMenuItem,
-            'addPageWithObject'
-        )
-    );

@@ -200,7 +200,9 @@ abstract class FOGManagerController extends FOGBase
                 }
                 if (is_array($value) && count($value) > 0) {
                     foreach ($value as $i => &$val) {
-                        $val = trim($val);
+                        if (is_string($val)) {
+                            $val = trim($val);
+                        }
                         // Define the key
                         $k = sprintf(
                             '%s_%d',
@@ -315,7 +317,7 @@ abstract class FOGManagerController extends FOGBase
         $knownEnable = array(
             'Image',
             'Snapin',
-            'StorageNode',
+            'StorageNode'
         );
         $nonEnable = !(in_array($this->childClass, $knownEnable));
         $isEnabled = array_key_exists(
@@ -388,41 +390,31 @@ abstract class FOGManagerController extends FOGBase
             $groupBy,
             $orderBy
         );
-        $data = array();
-        self::$DB->query($query, array(), $findVals);
+        self::$DB->query(
+            $query,
+            array(),
+            $findVals
+        )->fetch(
+            '',
+            'fetch_all'
+        );
         if ($idField) {
-            $data = (array) self::$DB
-                ->fetch('', 'fetch_all')
-                ->get($idField);
+            $data = (array)self::$DB->get($idField);
             if ($filter) {
                 return @$filter($data);
-            }
-            if (!is_array($data)) {
-                return $data;
             }
             if (count($data) === 1) {
                 $data = array_shift($data);
             }
-            if (empty($filter)) {
-                return $data;
-            }
         } else {
-            $vals = self::$DB
-                ->fetch('', 'fetch_all')
-                ->get();
-            foreach ((array) $vals as &$val) {
-                $class = self::getClass($this->childClass, $val);
-                if (!$class->isValid()) {
-                    continue;
-                }
-                $data[] = $class;
+            foreach ((array)self::$DB->get() as &$val) {
+                $data[] = new $this->childClass($val);
                 unset($val);
             }
         }
         if ($filter) {
             return @$filter($data);
         }
-
         return $data;
     }
     /**
@@ -546,7 +538,7 @@ abstract class FOGManagerController extends FOGBase
             )
         );
 
-        return (int) self::$DB
+        return (int)self::$DB
             ->query($query, array(), $countVals)
             ->fetch()
             ->get('total');
@@ -620,7 +612,6 @@ abstract class FOGManagerController extends FOGBase
             $affectedRows += (int) self::$DB->affectedRows();
             unset($v, $vals, $insertVals);
         }
-
         return array(
             $insertID,
             $affectedRows,
@@ -843,11 +834,11 @@ abstract class FOGManagerController extends FOGBase
     ) {
         global $node;
         if ($node === 'image') {
-            $matchID = (
-                $matchID === 0 ?
-                1 :
-                $matchID
-            );
+            $waszero = false;
+            if ($matchID === 0) {
+                $waszero = true;
+                $matchID = 1;
+            }
         }
         $elementName = trim($elementName);
         if (empty($elementName)) {
@@ -855,6 +846,19 @@ abstract class FOGManagerController extends FOGBase
         }
         $this->orderBy($orderBy);
         ob_start();
+        self::$HookManager
+            ->processEvent(
+                'SELECT_BUILD',
+                array(
+                    'matchID' => &$matchID,
+                    'elementName' => &$elementName,
+                    'orderBy' => &$orderBy,
+                    'filter' => &$filter,
+                    'template' => &$template,
+                    'waszero' => &$waszero,
+                    'obj' => $this
+                )
+            );
         foreach ((array)$this
             ->find(
                 $filter ? array('id' => $filter) : '',
@@ -899,15 +903,20 @@ abstract class FOGManagerController extends FOGBase
         if (empty($objOpts)) {
             return _('No items found');
         }
-        $tmpStr = sprintf(
-            '<select name="%s" autcomplete="off">'
-            .'<option value="">- %s -</option>'
-            .'%s</select>',
-            ($template ? '${selector_name}' : $elementName),
-            self::$foglang['PleaseSelect'],
-            $objOpts
-        );
-
+        $tmpStr .= '<select class="form-control input-group" name="'
+            . (
+                $template ?
+                '${select_name}' :
+                $elementName
+            )
+            . '" id="'
+            . $elementName
+            . '" autocomplete="off">';
+        $tmpStr .= '<option value="">- ';
+        $tmpStr .= self::$foglang['PleaseSelect'];
+        $tmpStr .= ' -</option>';
+        $tmpStr .= $objOpts;
+        $tmpStr .= '</select>';
         return $tmpStr;
     }
     /**
@@ -947,7 +956,7 @@ abstract class FOGManagerController extends FOGBase
             ':id'
         );
 
-        return (bool) self::$DB
+        return (bool)self::$DB
             ->query($query, array(), $existVals)
             ->fetch()
             ->get('total') > 0;
@@ -962,12 +971,15 @@ abstract class FOGManagerController extends FOGBase
      */
     public function search($keyword = '', $returnObjects = false)
     {
-        if (empty($keyword)) {
-            if (self::$isMobile) {
-                $keyword = trim($_REQUEST['host-search']);
-            } else {
-                $keyword = trim($_REQUEST['crit']);
-            }
+        $keyword = trim($keyword);
+        if (!$keyword) {
+            $keyword = filter_input(INPUT_POST, 'crit');
+        }
+        if (!$keyword) {
+            $keyword = filter_input(INPUT_GET, 'crit');
+        }
+        if (!$keyword) {
+            throw new Exception(_('Nothing passed to search for'));
         }
         $mac_keyword = str_replace(
             array('-', ':'),
@@ -995,9 +1007,8 @@ abstract class FOGManagerController extends FOGBase
                 $keyword
             )
         );
-        $_SESSION['caller'] = __FUNCTION__;
         if (count($this->aliasedFields) > 0) {
-            $this->arrayRemove($this->aliasedFields, $this->databaseFields);
+            self::arrayRemove($this->aliasedFields, $this->databaseFields);
         }
         $findWhere = array_fill_keys(array_keys($this->databaseFields), $keyword);
         $find = array(
@@ -1253,7 +1264,7 @@ abstract class FOGManagerController extends FOGBase
                 '%sID',
                 strtolower($this->childClass)
             );
-            if (!class_exists($assoc)) {
+            if (!class_exists($assoc, false)) {
                 break;
             }
             if (count($itemIDs) && !count($HostIDs)) {
@@ -1318,7 +1329,7 @@ abstract class FOGManagerController extends FOGBase
         }
         $whereArray = array();
         $countVals = $countKeys = array();
-        if (count($findWhere)) {
+        if (count($findWhere) > 0) {
             array_walk(
                 $findWhere,
                 function (
@@ -1402,7 +1413,7 @@ abstract class FOGManagerController extends FOGBase
             )
         );
 
-        return (int) self::$DB
+        return (int)self::$DB
             ->query($query, array(), $countVals)
             ->fetch()
             ->get('total');

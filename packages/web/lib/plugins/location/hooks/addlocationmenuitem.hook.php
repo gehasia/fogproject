@@ -48,6 +48,37 @@ class AddLocationMenuItem extends Hook
      */
     public $node = 'location';
     /**
+     * Initialize object.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        parent::__construct();
+        self::$HookManager
+            ->register(
+                'MAIN_MENU_DATA',
+                array(
+                    $this,
+                    'menuData'
+                )
+            )
+            ->register(
+                'SEARCH_PAGES',
+                array(
+                    $this,
+                    'addSearch'
+                )
+            )
+            ->register(
+                'PAGES_WITH_OBJECTS',
+                array(
+                    $this,
+                    'addPageWithObject'
+                )
+            );
+    }
+    /**
      * The menu data to change.
      *
      * @param mixed $arguments The arguments to change.
@@ -56,16 +87,16 @@ class AddLocationMenuItem extends Hook
      */
     public function menuData($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
-        $this->arrayInsertAfter(
+        self::arrayInsertAfter(
             'storage',
             $arguments['main'],
             $this->node,
             array(
-                _('Location Management'),
-                'fa fa-globe fa-2x'
+                _('Locations'),
+                'fa fa-globe'
             )
         );
         $Service = self::getClass('Service')
@@ -99,7 +130,7 @@ class AddLocationMenuItem extends Hook
      */
     public function addSearch($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         array_push($arguments['searchPages'], $this->node);
@@ -113,34 +144,9 @@ class AddLocationMenuItem extends Hook
      */
     public function addPageWithObject($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         array_push($arguments['PagesWithObjects'], $this->node);
     }
 }
-$AddLocationMenuItem = new AddLocationMenuItem();
-$HookManager
-    ->register(
-        'MAIN_MENU_DATA',
-        array(
-            $AddLocationMenuItem,
-            'menuData'
-        )
-    );
-$HookManager
-    ->register(
-        'SEARCH_PAGES',
-        array(
-            $AddLocationMenuItem,
-            'addSearch'
-        )
-    );
-$HookManager
-    ->register(
-        'PAGES_WITH_OBJECTS',
-        array(
-            $AddLocationMenuItem,
-            'addPageWithObject'
-        )
-    );

@@ -26,6 +26,12 @@
 class PDODB extends DatabaseManager
 {
     /**
+     * Stores last errorcode for query.
+     *
+     * @var bool|int
+     */
+    public $errorCode;
+    /**
      * Stores last error for query.
      *
      * @var bool|string
@@ -70,7 +76,8 @@ class PDODB extends DatabaseManager
         PDO::ATTR_PERSISTENT => false,
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => true
+        PDO::ATTR_EMULATE_PREPARES => true,
+        PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => false
     );
     /**
      * Initializes the PDODB class
@@ -82,6 +89,8 @@ class PDODB extends DatabaseManager
      */
     public function __construct($options = array())
     {
+        ignore_user_abort(true);
+        set_time_limit(0);
         if (self::$_link) {
             return $this;
         }
@@ -171,11 +180,13 @@ class PDODB extends DatabaseManager
                 $this->_connect(false);
             } else {
                 $msg = sprintf(
-                    '%s %s: %s: %s',
+                    '%s %s: %s: %s %s: %s',
                     _('Failed to'),
                     __FUNCTION__,
                     _('Error'),
-                    $e->getMessage()
+                    $e->getMessage(),
+                    _('Error Message'),
+                    $this->sqlerror()
                 );
             }
         }
@@ -210,11 +221,13 @@ class PDODB extends DatabaseManager
             }
         } catch (PDOException $e) {
             $msg = sprintf(
-                '%s %s: %s: %s',
+                '%s %s: %s: %s %s: %s',
                 _('Failed to'),
                 __FUNCTION__,
                 _('Error'),
-                $e->getMessage()
+                $e->getMessage(),
+                _('Error Message'),
+                $main->sqlerror()
             );
             self::$_dbName = false;
         }
@@ -266,11 +279,13 @@ class PDODB extends DatabaseManager
             $this->error = false;
         } catch (PDOException $e) {
             $msg = sprintf(
-                '%s %s: %s: %s',
+                '%s %s: %s: %s %s: %s',
                 _('Failed to'),
                 __FUNCTION__,
                 _('Error'),
-                $e->getMessage()
+                $e->getMessage(),
+                _('Error Message'),
+                $this->sqlerror()
             );
             if (stripos($e->getMessage(), _('no database to'))) {
                 $msg = sprintf(
@@ -322,14 +337,17 @@ class PDODB extends DatabaseManager
             }
         } catch (PDOException $e) {
             $msg = sprintf(
-                '%s %s: %s: %s',
+                '%s %s: %s: %s %s: %s',
                 _('Failed to'),
                 __FUNCTION__,
                 _('Error'),
-                $e->getMessage()
+                $e->getMessage(),
+                _('Error Message'),
+                $this->sqlerror()
             );
             self::$_result = false;
         }
+        self::$_queryResult = null;
         return $this;
     }
     /**
@@ -375,11 +393,13 @@ class PDODB extends DatabaseManager
             }
         } catch (Exception $e) {
             $msg = sprintf(
-                '%s %s: %s: %s',
+                '%s %s: %s: %s %s: %s',
                 _('Failed to'),
                 __FUNCTION__,
                 _('Error'),
-                $e->getMessage()
+                $e->getMessage(),
+                _('Error Message'),
+                $this->sqlerror()
             );
         }
         return self::$_result;
@@ -393,12 +413,12 @@ class PDODB extends DatabaseManager
     {
         $msg = '';
         if (self::$_link) {
-            if (self::$_link->errorCode()) {
-                $errCode = self::$_link->errorCode();
-                $errInfo = self::$_link->errorInfo();
-            } else {
+            if (self::$_queryResult instanceof PDOStatement
+                && self::$_queryResult->errorCode()
+            ) {
                 $errCode = self::$_queryResult->errorCode();
                 $errInfo = self::$_queryResult->errorInfo();
+                $this->errorCode = $errInfo[1];
             }
             if ($errCode !== '00000') {
                 $msg = sprintf(
@@ -433,7 +453,10 @@ class PDODB extends DatabaseManager
      */
     public function fieldCount()
     {
-        return self::$_queryResult->columnCount();
+        if (self::$_queryResult instanceof PDOStatement) {
+            return self::$_queryResult->columnCount();
+        }
+        return 0;
     }
     /**
      * Returns affected rows
@@ -442,7 +465,10 @@ class PDODB extends DatabaseManager
      */
     public function affectedRows()
     {
-        return self::$_queryResult->rowCount();
+        if (self::$_queryResult instanceof PDOStatement) {
+            return self::$_queryResult->rowCount();
+        }
+        return 0;
     }
     /**
      * Escapes data passed
@@ -465,10 +491,8 @@ class PDODB extends DatabaseManager
     private function _clean($data)
     {
         $data = trim($data);
-        $eData = htmlentities(
-            $data,
-            ENT_QUOTES,
-            'utf-8'
+        $eData = Initiator::sanitizeItems(
+            $data
         );
         if (!self::$_link) {
             return $eData;
@@ -534,9 +558,11 @@ class PDODB extends DatabaseManager
      */
     private static function _debugDumpParams()
     {
-        ob_start();
-        self::$_queryResult->debugDumpParams();
-        return ob_get_clean();
+        if (self::$_queryResult instanceof PDOStatement) {
+            ob_start();
+            self::$_queryResult->debugDumpParams();
+            return ob_get_clean();
+        }
     }
     /**
      * Executes the query.
@@ -548,12 +574,13 @@ class PDODB extends DatabaseManager
     private static function _execute($paramvals = array())
     {
         if (count($paramvals) > 0) {
-            foreach ((array)$paramvals as $param => $value) {
+            foreach ((array)$paramvals as $param => &$value) {
                 if (is_array($value)) {
                     self::_bind($param, $value[0], $value[1]);
                 } else {
                     self::_bind($param, $value);
                 }
+                unset($value);
             }
         }
         return self::$_queryResult->execute();

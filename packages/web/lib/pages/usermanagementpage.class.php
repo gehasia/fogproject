@@ -40,11 +40,28 @@ class UserManagementPage extends FOGPage
         parent::__construct($this->name);
         global $id;
         if ($id) {
+            $linkstr = "$this->linkformat#user-%s";
             $this->subMenu = array(
-                $this->linkformat => self::$foglang['General'],
+                sprintf(
+                    $linkstr,
+                    'general'
+                ) => self::$foglang['General'],
+                sprintf(
+                    $linkstr,
+                    'changepw'
+                ) => _('Change password'),
+                sprintf(
+                    $linkstr,
+                    'api'
+                ) => _('API Settings'),
                 $this->delformat => self::$foglang['Delete'],
             );
             $this->notes = array(
+                _('Friendly Name') => (
+                    $this->obj->get('display') ?
+                    $this->obj->get('display') :
+                    _('No friendly name defined')
+                ),
                 self::$foglang['User'] => $this->obj->get('name'),
             );
         }
@@ -62,53 +79,65 @@ class UserManagementPage extends FOGPage
                 )
             );
         $this->headerData = array(
-            '<input type="checkbox" name="toggle-checkbox" class='
-            . '"toggle-checkboxAction" />',
+            '<label for="toggler">'
+            . '<input type="checkbox" name="toggle-checkbox" class='
+            . '"toggle-checkboxAction" id="toggler"/>'
+            . '</label>',
+            _('API?'),
             _('Username'),
-            _('Edit')
+            _('Friendly Name')
         );
         $this->templates = array(
-            '<input type="checkbox" name="user[]" value='
-            . '"${id}" class="toggle-action" />',
+            '<label for="user-${id}">'
+            . '<input type="checkbox" name="user[]" value='
+            . '"${id}" class="toggle-action" id="user-${id}"/>'
+            . '</label>',
+            '${apiYes}',
             sprintf(
                 '<a href="?node=%s&sub=edit&%s=${id}" title="%s">${name}</a>',
                 $this->node,
                 $this->id,
                 _('Edit User')
             ),
-            sprintf(
-                '<a href="?node=%s&sub=edit&%s=${id}" title="%s">'
-                . '<i class="icon fa fa-pencil"></i></a>',
-                $this->node,
-                $this->id,
-                _('Edit User')
-            )
+            '${friendly}'
         );
         $this->attributes = array(
             array(
-                'class' => 'l filter-false',
+                'class' => 'filter-false form-group',
                 'width' => 16
             ),
-            array(),
             array(
-                'class' => 'c filter-false',
-                'width' => 55
-            )
+                'width' => 22
+            ),
+            array(
+                'width' => 22
+            ),
+            array(),
+            array()
         );
         $types = array();
         self::$HookManager->processEvent(
             'USER_TYPES_FILTER',
             array('types' => &$types)
         );
+        /**
+         * Lambda function to return data either by list or search.
+         *
+         * @param object $User the object to use
+         *
+         * @return void
+         */
         self::$returnData = function (&$User) use (&$types) {
             if (count($types) > 0
-                && in_array($User->get('type'), $types)
+                && in_array($User->type, $types)
             ) {
                 return;
             }
             $this->data[] = array(
-                'id' => $User->get('id'),
-                'name' => $User->get('name'),
+                'id' => $User->id,
+                'apiYes' => $User->api ? _('Yes') : _('No'),
+                'name' => $User->name,
+                'friendly' => $User->display
             );
             unset($User);
         };
@@ -120,48 +149,82 @@ class UserManagementPage extends FOGPage
      */
     public function add()
     {
+        unset(
+            $this->data,
+            $this->form,
+            $this->headerData,
+            $this->attributes,
+            $this->templates
+        );
         $this->title = _('New User');
-        unset($this->headerData);
         $this->templates = array(
             '${field}',
             '${input}',
         );
         $this->attributes = array(
-            array(),
-            array(),
+            array('class' => 'col-xs-4'),
+            array('class' => 'col-xs-8 form-group'),
         );
         $this->data = array();
+        $name = filter_input(
+            INPUT_POST,
+            'name'
+        );
+        $display = filter_input(
+            INPUT_POST,
+            'display'
+        );
         $fields = array(
-            '<input style="display:none" type='
-            . '"text" name="fakeusernameremembered"/>' => '<input style='
-            . '"display:none" type="password" name="fakepasswordremembered"/>',
-            _('User Name') => sprintf(
-                '<input type="text" class="username-input" name='
-                . '"name" value="%s" autocomplete="off"/>',
-                $_REQUEST['name']
-            ),
-            _('User Password') => '<input type="password" class='
-            . '"password-input1" name="password" value="" autocomplete='
-            . '"off" id="password"/>',
-            _('User Password (confirm)') => '<input type="password" class='
-            . '"password-input2" name="password_confirm" value='
-            . '"" autocomplete="off"/>',
-            sprintf(
-                '%s&nbsp;'
-                . '<i class="icon icon-help hand fa fa-question" title="%s"></i>',
-                _('Mobile/Quick Image Access Only?'),
-                sprintf(
-                    '%s - %s, %s %s.',
-                    _('Warning'),
-                    _('if you tick this box'),
-                    _('this user will not be able to log into'),
-                    _('this FOG Management console in the future')
-                )
-            ) =>  '<input type="checkbox" name="isGuest" autocomplete="off"/>',
-            '&nbsp;' => sprintf(
-                '<input name="add" type="submit" value="%s"/>',
-                _('Create User')
+            '<label for="name">'
+            . _('User Name')
+            . '</label>' => '<div class="input-group">'
+            . '<input type="text" class="'
+            . 'form-control username-input" name='
+            . '"name" value="'
+            . $name
+            . '" autocomplete="off" id="name" required/>'
+            . '</div>',
+            '<label for="display">'
+            . _('Friendly Name')
+            . '</label>' => '<div class="input-group">'
+            . '<input type="text" class="'
+            . 'form-control friendlyname-input" name="'
+            . 'display" value="'
+            . $display
+            . '" autocomplete="off" id="display"/>'
+            . '</div>',
+            '<label for="password">'
+            . _('User Password')
+            . '</label>' => '<div class="input-group">'
+            . '<input type="password" class="'
+            . 'form-control password-input1" name="password" value='
+            . '"" autocomplete='
+            . '"off" id="password" required/>'
+            . '</div>',
+            '<label for="password2">'
+            . _('User Password (confirm)')
+            . '</label>' => '<div class="input-group">'
+            . '<input type="password" class="'
+            . 'form-control password-input2" name="password_confirm" value='
+            . '"" autocomplete="off" required/>'
+            . '</div>',
+            '<label for="apion">'
+            . _('User API Enabled')
+            . '</label>' => '<input type="checkbox" class="'
+            . 'api-enabled" name="apienabled" id="'
+            . 'apion"'
+            . (
+                isset($_POST['apienabled']) ?
+                ' checked' :
+                ''
             )
+            . '/>',
+            '<label for="add">'
+            . _('Create user?')
+            . '</label> ' => '<button class="btn btn-info btn-block" name="'
+            . 'add" id="add" type="submit">'
+            . _('Create')
+            . '</button>'
         );
         array_walk($fields, $this->fieldsToData);
         self::$HookManager
@@ -173,13 +236,25 @@ class UserManagementPage extends FOGPage
                     'attributes' => &$this->attributes
                 )
             );
-        printf(
-            '<h2>%s</h2><form method="post" action="%s">',
-            _('Add new user account'),
-            $this->formAction
-        );
-        $this->render();
+        unset($fields);
+        echo '<div class="col-xs-9">';
+        echo '<div class="panel panel-info">';
+        echo '<div class="panel-heading text-center">';
+        echo '<h4 class="title">';
+        echo $this->title;
+        echo '</h4>';
+        echo '</div>';
+        echo '<div class="panel-body">';
+        echo '<form class="form-horizontal" method="post" action="'
+            . $this->formAction
+            . '">';
+        echo '<input type="text" name="fakeusernameremembered" class="fakes"/>';
+        echo '<input type="password" name="fakepasswordremembered" class="fakes"/>';
+        $this->render(12);
         echo '</form>';
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
     }
     /**
      * Actually create the new user.
@@ -188,10 +263,26 @@ class UserManagementPage extends FOGPage
      */
     public function addPost()
     {
-        self::$HookManager
-            ->processEvent('USER_ADD_POST');
+        self::$HookManager->processEvent('USER_ADD_POST');
+        $name = strtolower(
+            trim(
+                filter_input(INPUT_POST, 'name')
+            )
+        );
+        $password = trim(
+            filter_input(INPUT_POST, 'password')
+        );
+        $friendly = trim(
+            filter_input(INPUT_POST, 'display')
+        );
+        $apien = (int)isset($_POST['apienabled']);
+        $token = self::createSecToken();
         try {
-            $name = strtolower(trim($_REQUEST['name']));
+            if (!$name) {
+                throw new Exception(
+                    _('A user name is required!')
+                );
+            }
             $test = preg_match(
                 '/(?=^.{3,40}$)^[\w][\w0-9]*[._-]?[\w0-9]*[.]?[\w0-9]+$/i',
                 $name
@@ -199,34 +290,52 @@ class UserManagementPage extends FOGPage
             if (!$test) {
                 throw new Exception(
                     sprintf(
-                        '%s.<br/><small>%s.<br/>%s.<br/>%s.</br>%s.</small>',
-                        _('Username does not meet rules'),
-                        _('Must start with a word character'),
-                        _('Must be at least 3 characters'),
-                        _('Must be shorter than 41 characters'),
-                        _('No contiguous special characters')
+                        '%s.<br/>%s.<br/>%s.<br/>%s.<br/>%s.',
+                        _('Username does not meet requirements'),
+                        _('Username must start with a word character'),
+                        _('Username must be at least 3 characters'),
+                        _('Username must be less than 41 characters'),
+                        _('Username cannot contain contiguous special characters')
                     )
                 );
             }
             if (self::getClass('UserManager')->exists($name)) {
-                throw new Exception(_('Username already exists'));
+                throw new Exception(
+                    _('A username already exists with this name!')
+                );
+            }
+            if (!$password) {
+                throw new Exception(
+                    _('A password is required!')
+                );
             }
             $User = self::getClass('User')
                 ->set('name', $name)
-                ->set('type', isset($_REQUEST['isGuest']))
-                ->set('password', $_REQUEST['password']);
+                ->set('password', $password)
+                ->set('display', $friendly)
+                ->set('api', $apien)
+                ->set('type', 0)
+                ->set('token', $token);
             if (!$User->save()) {
-                throw new Exception(_('Failed to create user'));
+                throw new Exception(
+                    _('Add user failed!')
+                );
             }
             $hook = 'USER_ADD_SUCCESS';
-            $msg = sprintf(
-                '%s<br/>%s',
-                _('User created'),
-                _('You may now create another')
+            $msg = json_encode(
+                array(
+                    'msg' => _('User added!'),
+                    'title' => _('User Create Success')
+                )
             );
         } catch (Exception $e) {
             $hook = 'USER_ADD_FAIL';
-            $msg = $e->getMessage();
+            $msg = json_encode(
+                array(
+                    'error' => $e->getMessage(),
+                    'title' => _('User Create Fail')
+                )
+            );
         }
         self::$HookManager
             ->processEvent(
@@ -234,66 +343,66 @@ class UserManagementPage extends FOGPage
                 array('User' => &$User)
             );
         unset($User);
-        $this->setMessage($msg);
-        $this->redirect($this->formAction);
+        echo $msg;
+        exit;
     }
     /**
-     * Enable user to edit a user.
+     * User general div element.
      *
      * @return void
      */
-    public function edit()
+    public function userGeneral()
     {
-        $this->title = sprintf('%s: %s', _('Edit'), $this->obj->get('name'));
-        $fields = array(
-            '<input style="display:none" type='
-            . '"text" name="fakeusernameremembered"/>' => '<input style='
-            . '"display:none" type="password" name="fakepasswordremembered"/>',
-            _('User Name') => sprintf(
-                '<input type="text" class="username-input" name='
-                . '"name" value="%s" autocomplete="off"/>',
-                $this->obj->get('name')
-            ),
-            _('User Password') => '<input type="password" class='
-            . '"password-input1" name="password" value="" autocomplete='
-            . '"off" id="password"/>',
-            _('User Password (confirm)') => '<input type="password" class='
-            . '"password-input2" name="password_confirm" value='
-            . '"" autocomplete="off"/>',
-            sprintf(
-                '%s&nbsp;'
-                . '<i class="icon icon-help hand fa fa-question" title="%s"></i>',
-                _('Mobile/Quick Image Access Only?'),
-                sprintf(
-                    '%s - %s, %s %s.',
-                    _('Warning'),
-                    _('if you tick this box'),
-                    _('this user will not be able to log into'),
-                    _('this FOG Management console in the future')
-                )
-            ) => sprintf(
-                '<input type="checkbox" name="isGuest" autocomplete="off"%s/>&nbsp;',
-                (
-                    $this->type == 1 ?
-                    ' checked' :
-                    ''
-                )
-            ),
-            '&nbsp;' => sprintf(
-                '<input name="update" type="submit" value="%s"/>',
-                _('Update')
-            )
+        unset(
+            $this->data,
+            $this->form,
+            $this->headerData,
+            $this->attributes,
+            $this->templates
         );
-        unset($this->headerData);
+        $this->title = _('User General');
+        $this->attributes = array(
+            array('class' => 'col-xs-4'),
+            array('class' => 'col-xs-8 form-group')
+        );
         $this->templates = array(
             '${field}',
-            '${input}',
+            '${input}'
         );
-        $this->attributes = array(
-            array(),
-            array(),
+        $fields = array(
+            '<label for="name">'
+            . _('User Name')
+            . '</label>' => '<div class="input-group">'
+            . '<input type="text" class="'
+            . 'form-control username-input" name='
+            . '"name" value="'
+            . $this->obj->get('name')
+            . '" autocomplete="off" id="name" required/>'
+            . '</div>',
+            '<label for="display">'
+            . _('Friendly Name')
+            . '</label>' => '<div class="input-group">'
+            . '<input type="text" class="'
+            . 'form-control friendlyname-input" name="'
+            . 'display" value="'
+            . $this->obj->get('display')
+            . '" autocomplete="off" id="display"/>'
+            . '</div>',
+            '<label for="updategen">'
+            . _('Update General?')
+            . '</label> ' => '<button class="btn btn-info btn-block" name="'
+            . 'update" id="updategen" type="submit">'
+            . _('Update')
+            . '</button>'
         );
-        $this->data = array();
+        self::$HookManager
+            ->processEvent(
+                'USER_FIELDS',
+                array(
+                    'fields' => &$fields,
+                    'User' => &$this->obj
+                )
+            );
         array_walk($fields, $this->fieldsToData);
         self::$HookManager
             ->processEvent(
@@ -304,12 +413,291 @@ class UserManagementPage extends FOGPage
                     'attributes' => &$this->attributes
                 )
             );
-        printf(
-            '<form method="post" action="%s">',
-            $this->formAction
-        );
-        $this->render();
+        echo '<!-- General -->';
+        echo '<div class="tab-pane fade in active" id="user-general">';
+        echo '<div class="panel panel-info">';
+        echo '<div class="panel-heading text-center">';
+        echo '<h4 class="title">';
+        echo $this->title;
+        echo '</h4>';
+        echo '</div>';
+        echo '<div class="panel-body">';
+        echo '<form class="form-horizontal" method="post" action="'
+            . $this->formAction
+            . '&tab=user-general">';
+        $this->render(12);
         echo '</form>';
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
+        unset(
+            $this->data,
+            $this->form,
+            $this->headerData,
+            $this->attributes,
+            $this->templates
+        );
+    }
+    /**
+     * Change password div element.
+     *
+     * @return void
+     */
+    public function userChangePW()
+    {
+        unset(
+            $this->data,
+            $this->form,
+            $this->headerData,
+            $this->attributes,
+            $this->templates
+        );
+        $this->title = _('User Change Password');
+        $this->attributes = array(
+            array('class' => 'col-xs-4'),
+            array('class' => 'col-xs-8 form-group')
+        );
+        $this->templates = array(
+            '${field}',
+            '${input}'
+        );
+        $fields = array(
+            '<label for="password">'
+            . _('User Password')
+            . '</label>' => '<div class="input-group">'
+            . '<input type="password" class="'
+            . 'form-control password-input1" name="password" value='
+            . '"" autocomplete='
+            . '"off" id="password" required/>'
+            . '</div>',
+            '<label for="passwordConfirm">'
+            . _('User Password (confirm)')
+            . '</label>' => '<div class="input-group">'
+            . '<input type="password" class="'
+            . 'form-control password-input2" name="password_confirm" value='
+            . '"" autocomplete="off" id="passwordConfirm" required/>'
+            . '</div>',
+            '<label for="updatepw">'
+            . _('Update Password?')
+            . '</label> ' => '<button class="btn btn-info btn-block" name="'
+            . 'update" id="updatepw" type="submit">'
+            . _('Update')
+            . '</button>'
+        );
+        array_walk($fields, $this->fieldsToData);
+        self::$HookManager
+            ->processEvent(
+                'USER_PW_EDIT',
+                array(
+                    'data' => &$this->data,
+                    'templates' => &$this->templates,
+                    'attributes' => &$this->attributes
+                )
+            );
+        echo '<div id="user-changepw" class="tab-pane fade">';
+        echo '<div class="panel panel-info">';
+        echo '<div class="panel-heading text-center">';
+        echo '<h4 class="title">';
+        echo $this->title;
+        echo '</h4>';
+        echo '</div>';
+        echo '<div class="panel-body">';
+        echo '<form class="form-horizontal" method="post" action="'
+            . $this->formAction
+            . '&tab=user-changepw">';
+        $this->render(12);
+        echo '</form>';
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
+        unset(
+            $this->data,
+            $this->form,
+            $this->headerData,
+            $this->attributes,
+            $this->templates
+        );
+    }
+    /**
+     * API div element.
+     *
+     * @return void
+     */
+    public function userAPI()
+    {
+        unset(
+            $this->data,
+            $this->form,
+            $this->headerData,
+            $this->attributes,
+            $this->templates
+        );
+        $this->title = _('User API Settings');
+        $this->attributes = array(
+            array('class' => 'col-xs-4'),
+            array('class' => 'col-xs-8 form-group')
+        );
+        $this->templates = array(
+            '${field}',
+            '${input}'
+        );
+        $fields = array(
+            '<label for="apion">'
+            . _('User API Enabled')
+            . '</label>' => '<input type="checkbox" class="'
+            . 'api-enabled" name="apienabled" id="'
+            . 'apion"'
+            . (
+                $this->obj->get('api') ?
+                ' checked' :
+                ''
+            )
+            . '/>',
+            '<label for="token">'
+            . _('User API Token')
+            . '</label>' => '<div class="input-group">'
+            . '<input type="password" class="'
+            . 'form-control token" name="'
+            . 'apitoken" id="token" readonly value="'
+            . base64_encode(
+                $this->obj->get('token')
+            )
+            . '"/>'
+            . '<div class="input-group-btn">'
+            . '<button class="btn btn-warning resettoken" type="button">'
+            . _('Reset Token')
+            . '</button>'
+            . '</div>'
+            . '</div>',
+            '<label for="updateapi">'
+            . _('Update API?')
+            . '</label> ' => '<button class="btn btn-info btn-block" name="'
+            . 'update" id="updateapi" type="submit">'
+            . _('Update')
+            . '</button>'
+        );
+        array_walk($fields, $this->fieldsToData);
+        self::$HookManager
+            ->processEvent(
+                'USER_API_EDIT',
+                array(
+                    'data' => &$this->data,
+                    'templates' => &$this->templates,
+                    'attributes' => &$this->attributes
+                )
+            );
+        echo '<div id="user-api" class="tab-pane fade">';
+        echo '<div class="panel panel-info">';
+        echo '<div class="panel-heading text-center">';
+        echo '<h4 class="title">';
+        echo $this->title;
+        echo '</h4>';
+        echo '</div>';
+        echo '<div class="panel-body">';
+        echo '<form class="form-horizontal" method="post" action="'
+            . $this->formAction
+            . '&tab=user-api">';
+        $this->render(12);
+        echo '</form>';
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
+        unset(
+            $this->data,
+            $this->form,
+            $this->headerData,
+            $this->attributes,
+            $this->templates
+        );
+    }
+    /**
+     * Enable user to edit a user.
+     *
+     * @return void
+     */
+    public function edit()
+    {
+        if (!$this->obj->get('token')) {
+            $this->obj
+                ->set('token', self::createSecToken())
+                ->save();
+        }
+        echo '<div class="col-xs-9 tab-content">';
+        echo '<input type="text" name="fakeusernameremembered" class="fakes"/>';
+        echo '<input type="password" name="fakepasswordremembered" class="fakes"/>';
+        $this->userGeneral();
+        $this->userChangePW();
+        $this->userAPI();
+        self::$HookManager->processEvent(
+            'USER_EDIT_EXTRA',
+            array(
+                'User' => &$this->obj,
+                'data' => &$this->data,
+                'headerData' => &$this->headerData,
+                'templates' => &$this->templates,
+                'attributes' => &$this->attributes,
+                'formAction' => &$this->formAction,
+                'render' => &$this
+            )
+        );
+        echo '</div>';
+    }
+    /**
+     * User General Post
+     *
+     * @return void
+     */
+    public function userGeneralPost()
+    {
+        $name = strtolower(
+            trim(
+                filter_input(INPUT_POST, 'name')
+            )
+        );
+        $display = trim(
+            filter_input(INPUT_POST, 'display')
+        );
+        if ($this->obj->get('name') != $name
+            && self::getClass('UserManager')->exists(
+                $name,
+                $this->obj->get('id')
+            )
+        ) {
+            throw new Exception(
+                _('A user already exists with this name')
+            );
+        }
+        $this->obj
+            ->set('name', $name)
+            ->set('display', $display);
+    }
+    /**
+     * User change password post.
+     *
+     * @return void
+     */
+    public function userChangePWPost()
+    {
+        $password = trim(
+            filter_input(INPUT_POST, 'password')
+        );
+        $this->obj
+            ->set('password', $password);
+    }
+    /**
+     * User Change API Post
+     *
+     * @return void
+     */
+    public function userAPIPost()
+    {
+        $apien = (int)isset($_POST['apienabled']);
+        $apitoken = base64_decode(
+            filter_input(INPUT_POST, 'apitoken')
+        );
+        $this->obj
+            ->set('api', $apien)
+            ->set('token', $apitoken);
     }
     /**
      * Actually save the edits.
@@ -323,48 +711,44 @@ class UserManagementPage extends FOGPage
                 'USER_EDIT_POST',
                 array('User' => &$this->obj)
             );
+        global $tab;
         try {
-            $name = strtolower(trim($_REQUEST['name']));
-            $test = preg_match(
-                '/(?=^.{3,40}$)^[\w][\w0-9]*[._-]?[\w0-9]*[.]?[\w0-9]+$/i',
-                $name
-            );
-            if (!$test) {
-                throw new Exception(
-                    sprintf(
-                        '%s.<br/><small>%s.<br/>%s.<br/>%s.</br>%s.</small>',
-                        _('Username does not meet rules'),
-                        _('Must start with a word character'),
-                        _('Must be at least 3 characters'),
-                        _('Must be shorter than 41 characters'),
-                        _('No contiguous special characters')
-                    )
-                );
+            switch ($tab) {
+            case 'user-general':
+                $this->userGeneralPost();
+                break;
+            case 'user-changepw':
+                $this->userChangePWPost();
+                break;
+            case 'user-api':
+                $this->userAPIPost();
+                break;
             }
-            if ($name != trim($this->obj->get('name'))
-                && $this->obj->getManager()->exists($name, $this->obj->get('id'))
-            ) {
-                throw new Exception(_('Username already exists'));
-            }
-            $this->obj
-                ->set('name', $name)
-                ->set('type', isset($_REQUEST['isGuest']))
-                ->set('password', $_REQUEST['password']);
             if (!$this->obj->save()) {
-                throw new Exception(_('User update failed'));
+                throw new Exception(_('User update failed!'));
             }
             $hook = 'USER_UPDATE_SUCCESS';
-            $msg = _('User updated');
+            $msg = json_encode(
+                array(
+                    'msg' => _('User updated!'),
+                    'title' => _('User Update Success')
+                )
+            );
         } catch (Exception $e) {
             $hook = 'USER_UPDATE_FAIL';
-            $msg = $e->getMessage();
+            $msg = json_encode(
+                array(
+                    'error' => $e->getMessage(),
+                    'title' => _('User Update Fail')
+                )
+            );
         }
         self::$HookManager
             ->processEvent(
                 $hook,
                 array('User' => &$this->obj)
             );
-        $this->setMessage($msg);
-        $this->redirect($this->formAction);
+        echo $msg;
+        exit;
     }
 }

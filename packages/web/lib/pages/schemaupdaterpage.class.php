@@ -54,55 +54,78 @@ class SchemaUpdaterPage extends FOGPage
     {
         $this->title = _('Database Schema Installer / Updater');
         $vals = array(
-            sprintf(
-                '%s, %s %s. %s, %s %s %s. %s, %s %s.',
-                _('Your FOG database schema is not up to date'),
-                _('either because you have updated'),
-                _('or this is a new FOG installation'),
-                _('If this is an upgrade'),
-                _('there will be a database backup stored on your'),
-                _('FOG server defaulting under the folder'),
-                '/home/fogDBbackups',
-                _('Should anything go wrong'),
-                _('this backup will enable you to return to the'),
-                _('previous install if needed')
-            ),
-            sprintf(
-                '%s %s?',
-                _('Are you sure you wish to'),
-                _('install or update the FOG database')
-            ),
-            $this->formAction,
-            _('Install/Upgrade Now'),
-            sprintf(
-                '%s %s %s %s %s (%s->%s->%s), %s %s.',
-                _('If you would like to backup your'),
-                _('FOG database you can do so using'),
-                _('MySQL Administrator or by running'),
-                _('the following command in a terminal'),
-                _('window'),
-                _('Applications'),
-                _('System Tools'),
-                _('Terminal'),
-                _('this will save the backup in your home'),
-                _('directory')
-            ),
             "\n",
         );
-        vprintf(
-            '<div id="dbRunning" class="hidden">'
-            . '<p>%s</p><p>%s</p><br/>'
-            . '<form method="post" action="%s">'
-            . '<p class="c"><input type="hidden" '
-            . 'name="fogverified"/><input type="submit" '
-            . 'name="confirm" value="%s"/></p></form>'
-            . '<p>%s</p><div id="sidenotes">'
-            . '<pre><code>cd%smysqldump --allow-keywords '
-            . '-x -v fog > fogbackup.sql</code></pre></div>'
-            . '<br/></div>',
-            $vals
+        // Success
+        echo '<div class="panel panel-info hiddeninitially" id="dbRunning">';
+        echo '<div class="panel-heading text-center">';
+        echo '<h4 class="title">';
+        echo _('Install/Update');
+        echo '</h4>';
+        echo '</div>';
+        echo '<div class="panel-body">';
+        echo '<div class="panel panel-warning">';
+        echo '<div class="panel-body">';
+        printf(
+            '%s %s %s %s %s (%s->%s->%s), %s %s.',
+            _('If you would like to backup your'),
+            _('FOG database you can do so using'),
+            _('MySQL Administrator or by running'),
+            _('the following command in a terminal'),
+            _('window'),
+            _('Applications'),
+            _('System Tools'),
+            _('Terminal'),
+            _('this will save the backup in your home'),
+            _('directory')
         );
-        echo '<div id="dbNotRunning" class="hidden">';
+        echo '<pre>';
+        echo 'mysqldump --allow-keywords -x -v fog > fogbackup.sql</p</pre>';
+        echo '</div>';
+        echo '</div>';
+        printf(
+            '%s, %s %s. %s, %s %s %s. %s, %s %s.',
+            _('Your FOG database schema is not up to date'),
+            _('either because you have updated'),
+            _('or this is a new FOG installation'),
+            _('If this is an upgrade'),
+            _('there will be a database backup stored on your'),
+            _('FOG server defaulting under the folder'),
+            '/home/fogDBbackups',
+            _('Should anything go wrong'),
+            _('this backup will enable you to return to the'),
+            _('previous install if needed')
+        );
+        echo '<br/>';
+        echo '<br/>';
+        printf(
+            '%s %s?',
+            _('Are you sure you wish to'),
+            _('install or update the FOG database')
+        );
+        echo '<br/>';
+        echo '<br/>';
+        echo '<form class="form-horizontal" action="'
+            . $this->formAction
+            . '" method="post">';
+        echo '<div class="col-xs-offset-4 col-xs-4">';
+        echo '<input type="hidden" name="fogverified"/>';
+        echo '<button type="submit" class="btn btn-primary btn-block" name='
+            . '"confirm">';
+        echo _('Install/Update Now');
+        echo '</button>';
+        echo '</div>';
+        echo '</form>';
+        echo '</div>';
+        echo '</div>';
+        // Failure
+        echo '<div class="panel panel-danger hiddeninitially" id="dbNotRunning">';
+        echo '<div class="panel-heading">';
+        echo '<h4 class="title">';
+        echo _('Database not available');
+        echo '</h4>';
+        echo '</div>';
+        echo '<div class="panel-body">';
         printf(
             '%s. %s. %s. %s %s%s%s. %s. %s, %s, %s.',
             _('Your database connection appears to be invalid'),
@@ -110,13 +133,14 @@ class SchemaUpdaterPage extends FOGPage
             _('There are many reasons why this could be the case'),
             _('Please check your credentials in'),
             dirname(dirname(__FILE__)),
-            DIRECTORY_SEPARATOR,
-            'fog/config.class.php',
+            DS,
+            'fog' . DS . 'config.class.php',
             _('Also confirm that the database is indeed running'),
             _('If credentials are correct'),
             _('and if the Database service is running'),
             _('check to ensure your filesystem has enough space')
         );
+        echo '</div>';
         echo '</div>';
     }
     /**
@@ -135,12 +159,12 @@ class SchemaUpdaterPage extends FOGPage
         include sprintf(
             '%s%scommons%sschema.php',
             BASEPATH,
-            DIRECTORY_SEPARATOR,
-            DIRECTORY_SEPARATOR
+            DS,
+            DS
         );
         $errors = array();
         try {
-            if (!self::$DB->getLink()) {
+            if (!DatabaseManager::getLink()) {
                 throw new Exception(_('No connection available'));
             }
             if (count($this->schema) <= self::$mySchema) {
@@ -180,6 +204,18 @@ class SchemaUpdaterPage extends FOGPage
                             break 2;
                         }
                     } elseif (false !== self::$DB->query($update)->error) {
+                        $dups = array(
+                            1050, // Can't drop not exist
+                            1054, // Column not found.
+                            1060, // Duplicate column name
+                            1061, // Duplicate index/key name
+                            1062, // Duplicate entry
+                            1091  // Table not exist.
+                        );
+                        $err = self::$DB->errorCode;
+                        if (in_array(self::$DB->errorCode, $dups)) {
+                            continue;
+                        }
                         $errors[] = sprintf(
                             '<p><b>%s %s:</b>'
                             . ' %s<br/><br/><b>%s %s:</b>'
@@ -201,11 +237,11 @@ class SchemaUpdaterPage extends FOGPage
                         );
                         unset($update);
                         break 2;
-                    } else {
-                        $newSchema->set('version', $version + 1);
                     }
                     unset($update);
                 }
+                $newSchema->set('version', $version + 1);
+                unset($updates);
             }
             if (!$newSchema->save()
                 || count($errors) > 0
@@ -224,7 +260,8 @@ class SchemaUpdaterPage extends FOGPage
                 }
                 throw new Exception($fatalerrmsg);
             }
-            self::$DB->currentDb(self::$DB->returnThis());
+            $db = self::$DB->returnThis();
+            self::$DB->currentDb($db);
             $text = sprintf(
                 '<p>%s</p><p>%s <a href="index.php">%s</a> %s</p>',
                 _('Install / Update Successful!'),

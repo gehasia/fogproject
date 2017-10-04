@@ -23,11 +23,35 @@
  */
 class HostList extends Event
 {
+    /**
+     * Name of event.
+     *
+     * @var string
+     */
     public $name = 'HostListEvent';
+    /**
+     * Description of event.
+     *
+     * @var string
+     */
     public $description = 'Triggers when the hosts are listed';
+    /**
+     * Status of event.
+     *
+     * @var string
+     */
     public $active = false;
+    /**
+     * Initialize our item.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        parent::__construct();
+        self::$EventManager->register(
+            'HOST_LIST_EVENT',
+            $this
+        );
+    }
 }
-$EventManager->register(
-    'HOST_LIST_EVENT',
-    new HostList()
-);

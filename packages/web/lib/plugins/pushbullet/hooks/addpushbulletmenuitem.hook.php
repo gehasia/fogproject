@@ -48,6 +48,37 @@ class AddPushbulletMenuItem extends Hook
      */
     public $node = 'pushbullet';
     /**
+     * Initialize object.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        parent::__construct();
+        self::$HookManager
+            ->register(
+                'MAIN_MENU_DATA',
+                array(
+                    $this,
+                    'menuData'
+                )
+            )
+            ->register(
+                'SEARCH_PAGES',
+                array(
+                    $this,
+                    'addSearch'
+                )
+            )
+            ->register(
+                'PAGES_WITH_OBJECTS',
+                array(
+                    $this,
+                    'addPageWithObject'
+                )
+            );
+    }
+    /**
      * Inserts the push bullet menu item
      *
      * @param array $arguments the arguments to alter
@@ -56,16 +87,16 @@ class AddPushbulletMenuItem extends Hook
      */
     public function menuData($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
-        $this->arrayInsertAfter(
+        self::arrayInsertAfter(
             'task',
             $arguments['main'],
             $this->node,
             array(
-                _('Pushbullet Management'),
-                'fa fa-bell fa-2x'
+                _('Pushbullet Accounts'),
+                'fa fa-bell'
             )
         );
     }
@@ -78,7 +109,7 @@ class AddPushbulletMenuItem extends Hook
      */
     public function addPageWithObject($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         if (!isset($arguments['PagesWithObjects'])) {
@@ -98,7 +129,7 @@ class AddPushbulletMenuItem extends Hook
      */
     public function addSearch($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         if (!isset($arguments['searchPages'])) {
@@ -110,25 +141,3 @@ class AddPushbulletMenuItem extends Hook
         );
     }
 }
-$AddPushbulletMenuItem = new AddPushbulletMenuItem();
-$HookManager->register(
-    'MAIN_MENU_DATA',
-    array(
-        $AddPushbulletMenuItem,
-        'menuData'
-    )
-);
-$HookManager->register(
-    'SEARCH_PAGES',
-    array(
-        $AddPushbulletMenuItem,
-        'addSearch'
-    )
-);
-$HookManager->register(
-    'PAGES_WITH_OBJECTS',
-    array(
-        $AddPushbulletMenuItem,
-        'addPageWithObject'
-    )
-);

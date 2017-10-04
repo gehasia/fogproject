@@ -22,8 +22,19 @@
  * @link     https://fogproject.org
  */
 require '../commons/base.inc.php';
-$decodedPath = urldecode($_REQUEST['path']);
-$paths = explode(':', $decodedPath);
+if (!is_string($_GET['path'])) {
+    echo json_encode(
+        _('Invalid')
+    );
+    exit;
+}
+$path = $_GET['path'];
+$decodePath = urldecode(
+    Initiator::sanitizeItems(
+        $path
+    )
+);
+$paths = explode(':', $decodePath);
 foreach ((array)$paths as &$decodedPath) {
     if (!(is_dir($decodedPath)
         && file_exists($decodedPath)
@@ -32,20 +43,27 @@ foreach ((array)$paths as &$decodedPath) {
         $files[] = json_encode(_('Path is unavailable'));
         continue;
     }
-    $replaced_dir_sep = preg_replace(
-        '#[\\/]#',
-        DIRECTORY_SEPARATOR,
+    $replaced_dir_sep = str_replace(
+        array('\\', '/'),
+        array(
+            DS,
+            DS
+        ),
         $decodedPath
     );
     $glob_str = sprintf(
         '%s%s*',
         $replaced_dir_sep,
-        DIRECTORY_SEPARATOR
+        DS
     );
     $files = FOGCore::fastmerge(
         (array) $files,
         (array) glob($glob_str)
     );
 }
-echo json_encode($files);
+echo json_encode(
+    Initiator::sanitizeItems(
+        $files
+    )
+);
 exit;

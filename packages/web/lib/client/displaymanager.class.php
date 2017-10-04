@@ -29,9 +29,9 @@ class DisplayManager extends FOGClient implements FOGClientSend
     public function json()
     {
         return array(
-            'x' => $this->Host->getDispVals('width'),
-            'y' => $this->Host->getDispVals('height'),
-            'r' => $this->Host->getDispVals('refresh'),
+            'x' => self::$Host->getDispVals('width'),
+            'y' => self::$Host->getDispVals('height'),
+            'r' => self::$Host->getDispVals('refresh'),
         );
     }
     /**
@@ -44,9 +44,9 @@ class DisplayManager extends FOGClient implements FOGClientSend
         $this->send = base64_encode(
             sprintf(
                 '%dx%dx%d',
-                $this->Host->getDispVals('width'),
-                $this->Host->getDispVals('height'),
-                $this->Host->getDispVals('refresh')
+                self::$Host->getDispVals('width'),
+                self::$Host->getDispVals('height'),
+                self::$Host->getDispVals('refresh')
             )
         );
     }

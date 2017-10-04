@@ -49,7 +49,7 @@ class Blame extends TaskingElement
                 ->set('storagenodeID', $taskStorageNodeID)
                 ->set('failureTime', $failtime)
                 ->set('taskID', $this->Task->get('id'))
-                ->set('hostID', $this->Host->get('id'))
+                ->set('hostID', self::$Host->get('id'))
                 ->save();
             $this->Task
                 ->set('stateID', self::getQueuedState());

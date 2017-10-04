@@ -48,6 +48,93 @@ class AddLocationHost extends Hook
      */
     public $node = 'location';
     /**
+     * Initialize object.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        parent::__construct();
+        self::$HookManager
+            ->register(
+                'HOST_HEADER_DATA',
+                array(
+                    $this,
+                    'hostTableHeader'
+                )
+            )
+            ->register(
+                'HOST_DATA',
+                array(
+                    $this,
+                    'hostData'
+                )
+            )
+            ->register(
+                'HOST_FIELDS',
+                array(
+                    $this,
+                    'hostFields'
+                )
+            )
+            ->register(
+                'HOST_ADD_SUCCESS',
+                array(
+                    $this,
+                    'hostAddLocation'
+                )
+            )
+            ->register(
+                'HOST_EDIT_SUCCESS',
+                array(
+                    $this,
+                    'hostAddLocation'
+                )
+            )
+            ->register(
+                'HOST_REGISTER',
+                array(
+                    $this,
+                    'hostRegister'
+                )
+            )
+            ->register(
+                'HOST_IMPORT',
+                array(
+                    $this,
+                    'hostImport'
+                )
+            )
+            ->register(
+                'HOST_EXPORT_REPORT',
+                array(
+                    $this,
+                    'hostExport'
+                )
+            )
+            ->register(
+                'DESTROY_HOST',
+                array(
+                    $this,
+                    'hostDestroy'
+                )
+            )
+            ->register(
+                'EMAIL_ITEMS',
+                array(
+                    $this,
+                    'hostEmailHook'
+                )
+            )
+            ->register(
+                'HOST_INFO_EXPOSE',
+                array(
+                    $this,
+                    'hostInfoExpose'
+                )
+            );
+    }
+    /**
      * Adjusts the host header.
      *
      * @param mixed $arguments The arguments to change.
@@ -58,7 +145,7 @@ class AddLocationHost extends Hook
     {
         global $node;
         global $sub;
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         if ($node != 'host') {
@@ -80,7 +167,7 @@ class AddLocationHost extends Hook
     {
         global $node;
         global $sub;
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         if ($node != 'host') {
@@ -129,7 +216,7 @@ class AddLocationHost extends Hook
     {
         global $node;
         global $sub;
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         if ($node != 'host') {
@@ -156,10 +243,14 @@ class AddLocationHost extends Hook
             );
             $locID = array_shift($Locations);
         }
-        $this->arrayInsertAfter(
-            _('Host Product Key'),
+        self::arrayInsertAfter(
+            '<label for="productKey">'
+            . _('Host Product Key')
+            . '</label>',
             $arguments['fields'],
-            _('Host Location'),
+            '<label for="location">'
+            . _('Host Location')
+            . '</label>',
             self::getClass('LocationManager')->buildSelectBox(
                 $locID
             )
@@ -174,12 +265,12 @@ class AddLocationHost extends Hook
      */
     public function hostAddLocation($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
-            return;
-        }
         global $node;
         global $sub;
         global $tab;
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
+            return;
+        }
         $subs = array(
             'add',
             'edit',
@@ -200,18 +291,25 @@ class AddLocationHost extends Hook
                 'hostID' => $arguments['Host']->get('id')
             )
         );
-        $cnt = self::getClass('LocationManager')
-            ->count(
-                array('id' => $_REQUEST['location'])
+        $location = (int)filter_input(INPUT_POST, 'location');
+        if ($location) {
+            $insert_fields = array(
+                'locationID',
+                'hostID'
             );
-        if ($cnt !== 1) {
-            return;
+            $insert_values = array();
+            $insert_values[] = array(
+                $location,
+                $arguments['Host']->get('id')
+            );
+            if (count($insert_values)) {
+                self::getClass('LocationAssociationManager')
+                    ->insertBatch(
+                        $insert_fields,
+                        $insert_values
+                    );
+            }
         }
-        self::getClass('LocationAssociation')
-            ->set('hostID', $arguments['Host']->get('id'))
-            ->load('hostID')
-            ->set('locationID', $_REQUEST['location'])
-            ->save();
     }
     /**
      * Adds the location to import.
@@ -222,7 +320,7 @@ class AddLocationHost extends Hook
      */
     public function hostImport($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         self::getClass('LocationAssociation')
@@ -240,11 +338,11 @@ class AddLocationHost extends Hook
      */
     public function hostExport($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         $find = array(
-            'hostID' => $arguments['Host']->get('id')
+            'hostID' => $arguments['Host']->id
         );
         $Locations = self::getSubObjectIDs(
             'LocationAssociation',
@@ -258,11 +356,19 @@ class AddLocationHost extends Hook
             $arguments['report']->addCSVCell('');
             return;
         }
-        foreach ((array)self::getClass('LocationManager')
-            ->find(array('id' => $Locations)) as &$Location
-        ) {
+        Route::listem(
+            'location',
+            'name',
+            false,
+            array('id' => $Locations)
+        );
+        $Locations = json_decode(
+            Route::getData()
+        );
+        $Locations = $Locations->locations;
+        foreach ((array)$Locations as &$Location) {
             $arguments['report']->addCSVCell(
-                $Location->get('id')
+                $Location->id
             );
             unset($Location);
         }
@@ -277,7 +383,7 @@ class AddLocationHost extends Hook
      */
     public function hostDestroy($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         self::getClass('LocationAssociationManager')->destroy(
@@ -295,7 +401,7 @@ class AddLocationHost extends Hook
      */
     public function hostEmailHook($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         $Locations = self::getSubObjectIDs(
@@ -318,13 +424,13 @@ class AddLocationHost extends Hook
                 break;
             }
         }
-        $this->arrayInsertAfter(
+        self::arrayInsertAfter(
             "\nSnapin Used: ",
             $arguments['email'],
             "\nImaged From (Location): ",
             $locName
         );
-        $this->arrayInsertAfter(
+        self::arrayInsertAfter(
             "\nImaged From (Location): ",
             $arguments['email'],
             "\nImagingLocation=",
@@ -340,7 +446,7 @@ class AddLocationHost extends Hook
      */
     public function hostRegister($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         $cnt = self::getClass('LocationManager')
@@ -370,7 +476,7 @@ class AddLocationHost extends Hook
      */
     public function hostInfoExpose($arguments)
     {
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         $Locations = self::getSubObjectIDs(
@@ -395,92 +501,3 @@ class AddLocationHost extends Hook
         }
     }
 }
-$AddLocationHost = new AddLocationHost();
-$HookManager
-    ->register(
-        'HOST_HEADER_DATA',
-        array(
-            $AddLocationHost,
-            'hostTableHeader'
-        )
-    );
-$HookManager
-    ->register(
-        'HOST_DATA',
-        array(
-            $AddLocationHost,
-            'hostData'
-        )
-    );
-$HookManager
-    ->register(
-        'HOST_FIELDS',
-        array(
-            $AddLocationHost,
-            'hostFields'
-        )
-    );
-$HookManager
-    ->register(
-        'HOST_ADD_SUCCESS',
-        array(
-            $AddLocationHost,
-            'hostAddLocation'
-        )
-    );
-$HookManager
-    ->register(
-        'HOST_EDIT_SUCCESS',
-        array(
-            $AddLocationHost,
-            'hostAddLocation'
-        )
-    );
-$HookManager
-    ->register(
-        'HOST_REGISTER',
-        array(
-            $AddLocationHost,
-            'hostRegister'
-        )
-    );
-$HookManager
-    ->register(
-        'HOST_IMPORT',
-        array(
-            $AddLocationHost,
-            'hostImport'
-        )
-    );
-$HookManager
-    ->register(
-        'HOST_EXPORT_REPORT',
-        array(
-            $AddLocationHost,
-            'hostExport'
-        )
-    );
-$HookManager
-    ->register(
-        'DESTROY_HOST',
-        array(
-            $AddLocationHost,
-            'hostDestroy'
-        )
-    );
-$HookManager
-    ->register(
-        'EMAIL_ITEMS',
-        array(
-            $AddLocationHost,
-            'hostEmailHook'
-        )
-    );
-$HookManager
-    ->register(
-        'HOST_INFO_EXPOSE',
-        array(
-            $AddLocationHost,
-            'hostInfoExpose'
-        )
-    );

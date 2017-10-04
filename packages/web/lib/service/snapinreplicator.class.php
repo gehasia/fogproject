@@ -22,6 +22,12 @@
 class SnapinReplicator extends FOGService
 {
     /**
+     * Is the service globally enabled.
+     *
+     * @var int
+     */
+    private static $_repOn = 0;
+    /**
      * Where to get the services sleeptime
      *
      * @var string
@@ -91,6 +97,10 @@ class SnapinReplicator extends FOGService
     private function _commonOutput()
     {
         try {
+            self::$_repOn = self::getSetting('SNAPINREPLICATORGLOBALENABLED');
+            if (self::$_repOn < 1) {
+                throw new Exception(_(' * Snapin replication is globally disabled'));
+            }
             foreach ((array)$this->checkIfNodeMaster() as &$StorageNode) {
                 self::wlog(
                     sprintf(
@@ -209,8 +219,29 @@ class SnapinReplicator extends FOGService
                 );
                 $Snapins = (array)self::getClass('SnapinManager')
                     ->find(array('id' => $snapinIDs));
-                foreach ($Snapins as &$Snapin
-                ) {
+                /**
+                 * Handles replicating of our ssl folder and contents.
+                 */
+                $ssls = array(
+                    'ssl/fog.csr',
+                    'ssl/CA'
+                );
+                self::outall(
+                    sprintf(
+                        ' | %s',
+                        _('Replicating ssl less private key')
+                    )
+                );
+                foreach ($ssls as $ssl) {
+                    $this->replicateItems(
+                        $myStorageGroupID,
+                        $myStorageNodeID,
+                        new Snapin(),
+                        false,
+                        $ssl
+                    );
+                }
+                foreach ($Snapins as &$Snapin) {
                     if (!$Snapin->getPrimaryGroup($myStorageGroupID)) {
                         self::outall(
                             sprintf(

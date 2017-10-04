@@ -179,10 +179,11 @@ class HostManager extends FOGManagerController
      *
      * @throws Exception
      *
-     * @return object
+     * @return void
      */
     public function getHostByMacAddresses($macs)
     {
+        self::$Host = new Host();
         $MACHost = self::getSubObjectIDs(
             'MACAddressAssociation',
             array(
@@ -191,11 +192,25 @@ class HostManager extends FOGManagerController
             ),
             'hostID'
         );
-        if (count($MACHost) > 1) {
-            throw new Exception(self::$foglang['ErrorMultipleHosts']);
+        if (count($MACHost) < 1) {
+            return;
         }
-
-        return new Host(@max($MACHost));
+        if (count($MACHost) > 1) {
+            $MACHost = self::getSubObjectIDs(
+                'MACAddressAssociation',
+                array(
+                    'pending' => array(0, ''),
+                    'primary' => 1,
+                    'mac' => $macs
+                ),
+                'hostID'
+            );
+            if (count($MACHost) > 1) {
+                throw new Exception(self::$foglang['ErrorMultipleHosts']);
+            }
+        }
+        self::$Host = new Host(@max($MACHost));
+        return;
     }
     /**
      * Removes fields.
@@ -279,7 +294,7 @@ class HostManager extends FOGManagerController
         /*
          * Remove any host screen entries
          */
-        self::getClass('HostScreenSettingsManager')->destroy($findWhere);
+        self::getClass('HostScreenSettingManager')->destroy($findWhere);
         /*
          * Remove any group entries
          */

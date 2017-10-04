@@ -50,7 +50,6 @@ class PingHosts extends FOGService
     {
         parent::__construct();
         list(
-            self::$_pingOn,
             self::$_fogWeb,
             $dev,
             $log,
@@ -59,7 +58,6 @@ class PingHosts extends FOGService
             'Service',
             array(
                 'name' => array(
-                    'FOG_HOST_LOOKUP',
                     'FOG_WEB_HOST',
                     'PINGHOSTDEVICEOUTPUT',
                     'PINGHOSTLOGFILENAME',
@@ -110,10 +108,11 @@ class PingHosts extends FOGService
     private function _commonOutput()
     {
         try {
+            self::$_pingOn = self::getSetting('PINGHOSTGLOBALENABLED');
             if (self::$_pingOn < 1) {
-                throw new Exception(_(' * Host Ping is not enabled'));
+                throw new Exception(_(' * Ping hosts is globally disabled'));
             }
-            $webServerIP = self::$FOGCore->resolveHostName(
+            $webServerIP = self::resolveHostName(
                 self::$_fogWeb
             );
             self::outall(
@@ -150,13 +149,13 @@ class PingHosts extends FOGService
                     )
                 )
             );
-            $hostids = self::getsubObjectIDs('Host');
-            $hostnames = self::getSubObjectIDs(
+            $hostids = (array)self::getsubObjectIDs('Host');
+            $hostnames = (array)self::getSubObjectIDs(
                 'Host',
                 array('id' => $hostids),
                 'name'
             );
-            $hostips = self::getSubObjectIDs(
+            $hostips = (array)self::getSubObjectIDs(
                 'Host',
                 array(
                     'id' => $hostids,
@@ -177,7 +176,7 @@ class PingHosts extends FOGService
                 }
                 $ip = $hostips[$index];
                 if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
-                    $ip = self::$FOGCore->resolveHostname($hostnames[$index]);
+                    $ip = self::resolveHostname($hostnames[$index]);
                 }
                 if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
                     $ip = $hostnames[$index];

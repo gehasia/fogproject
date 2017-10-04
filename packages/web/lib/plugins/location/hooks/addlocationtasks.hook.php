@@ -48,6 +48,30 @@ class AddLocationTasks extends Hook
      */
     public $node = 'location';
     /**
+     * Initialize object.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        parent::__construct();
+        self::$HookManager
+            ->register(
+                'HOST_DATA',
+                array(
+                    $this,
+                    'tasksActiveTableHeader'
+                )
+            )
+            ->register(
+                'HOST_DATA',
+                array(
+                    $this,
+                    'tasksActiveData'
+                )
+            );
+    }
+    /**
      * The header to change within tasks.
      *
      * @param mixed $arguments The arguments to change.
@@ -57,7 +81,7 @@ class AddLocationTasks extends Hook
     public function tasksActiveTableHeader($arguments)
     {
         global $node;
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         if ($node != 'task') {
@@ -75,7 +99,7 @@ class AddLocationTasks extends Hook
     public function tasksActiveData($arguments)
     {
         global $node;
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         if ($node != 'task') {
@@ -108,20 +132,3 @@ class AddLocationTasks extends Hook
         }
     }
 }
-$AddLocationTasks = new AddLocationTasks();
-$HookManager
-    ->register(
-        'HOST_DATA',
-        array(
-            $AddLocationTasks,
-            'tasksActiveTableHeader'
-        )
-    );
-$HookManager
-    ->register(
-        'HOST_DATA',
-        array(
-            $AddLocationTasks,
-            'tasksActiveData'
-        )
-    );

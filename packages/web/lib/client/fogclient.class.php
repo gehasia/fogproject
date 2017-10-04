@@ -34,12 +34,6 @@ abstract class FOGClient extends FOGBase
      */
     protected $send;
     /**
-     * Stores the host item
-     *
-     * @var object
-     */
-    protected $Host;
-    /**
      * Initialize the client items
      *
      * @param bool $service         if the check is from service directory
@@ -59,8 +53,34 @@ abstract class FOGClient extends FOGBase
     ) {
         try {
             parent::__construct();
+            global $sub;
+            global $json;
+            $method = 'send';
+            self::getHostItem(
+                $service,
+                $encoded,
+                $hostnotrequired,
+                $returnmacs,
+                $override
+            );
+            if (!self::$Host instanceof Host) {
+                self::$Host = new Host(0);
+            }
+            if (isset($_REQUEST['moduleid'])) {
+                $this->shortName = Initiator::sanitizeItems(
+                    $_REQUEST['moduleid']
+                );
+                switch ($this->shortName) {
+                case 'dircleaner':
+                    $this->shortName = 'dircleanup';
+                    break;
+                case 'snapin':
+                    $this->shortName = 'snapinclient';
+                    break;
+                }
+            }
             $globalInfo = array_intersect_key(
-                $this->getGlobalModuleStatus(),
+                self::getGlobalModuleStatus(),
                 array($this->shortName => '')
             );
             if (!(isset($globalInfo[$this->shortName])
@@ -68,31 +88,25 @@ abstract class FOGClient extends FOGBase
             ) {
                 throw new Exception('#!ng');
             }
-            global $sub;
-            global $json;
-            $method = 'send';
-            if (self::$json && method_exists($this, 'json')) {
-                $method = 'json';
-            }
-            $this->Host = self::getHostItem(
-                $service,
-                $encoded,
-                $hostnotrequired,
-                $returnmacs,
-                $override
-            );
             $hostModInfo = self::getSubObjectIDs(
                 'Module',
                 array(
-                    'id' => $this->Host->get('modules'),
+                    'id' => self::$Host->get('modules'),
                     'shortName' => $this->shortName
                 ),
                 'shortName'
             );
-            if (false === $hostnotrequired
-                && !in_array($this->shortName, $hostModInfo)
-            ) {
-                throw new Exception('#!nh');
+            if (!in_array($this->shortName, $hostModInfo)) {
+                if (!self::$Host->isValid()
+                    && false === $hostnotrequired
+                ) {
+                    throw new Exception('#!nh');
+                }
+            }
+            if (self::$json) {
+                if (method_exists($this, 'json')) {
+                    $method = 'json';
+                }
             }
             $validClientBrowserFiles = array(
                 'jobs.php',
@@ -146,6 +160,12 @@ abstract class FOGClient extends FOGBase
             }
             $this->sendData($this->send);
         } catch (Exception $e) {
+            global $json;
+            global $newService;
+            if (!$json && $newService) {
+                echo $this->send;
+                exit;
+            }
             if (!self::$json) {
                 return print $e->getMessage();
             }
@@ -156,7 +176,7 @@ abstract class FOGClient extends FOGBase
             );
             $jsonSub = (!isset($sub) || $sub !== 'requestClientInfo');
             if ($jsonSub && self::$json) {
-                return print $message;
+                return $this->sendData($message);
             }
             return $message;
         }

@@ -43,7 +43,7 @@ class MulticastTask extends FOGService
             return;
         }
         $Interface = self::getMasterInterface(
-            self::$FOGCore->resolveHostname(
+            self::resolveHostname(
                 $StorageNode->get('ip')
             )
         );
@@ -56,17 +56,17 @@ class MulticastTask extends FOGService
                 (array)self::getProgressState()
             )
         );
-        foreach ((array)self::getClass('MulticastSessionsManager')
+        foreach ((array)self::getClass('MulticastSessionManager')
             ->find($find) as $index => &$MultiSess
         ) {
             $taskIDs = self::getSubObjectIDs(
-                'MulticastSessionsAssociation',
+                'MulticastSessionAssociation',
                 array(
                     'msID' => $MultiSess->get('id')
                 ),
                 'taskID'
             );
-            $count = self::getClass('MulticastSessionsAssociationManager')
+            $count = self::getClass('MulticastSessionAssociationManager')
                 ->count(
                     array(
                         'msID' => $MultiSess->get('id')
@@ -228,7 +228,7 @@ class MulticastTask extends FOGService
         $this->_intOSID = $osid;
         $this->_isNameSess = $nameSess;
         $this->_taskIDs = $taskIDs;
-        $this->_MultiSess = new MulticastSessions($this->getID());
+        $this->_MultiSess = new MulticastSession($this->getID());
     }
     /**
      * Get session clients
@@ -399,6 +399,7 @@ class MulticastTask extends FOGService
         list(
             $address,
             $duplex,
+            $multicastrdv,
             $maxwait
         ) = self::getSubObjectIDs(
             'Service',
@@ -406,6 +407,7 @@ class MulticastTask extends FOGService
                 'name' => array(
                     'FOG_MULTICAST_ADDRESS',
                     'FOG_MULTICAST_DUPLEX',
+                    'FOG_MULTICAST_RENDEZVOUS',
                     'FOG_UDPCAST_MAXWAIT'
                 )
             ),
@@ -442,11 +444,16 @@ class MulticastTask extends FOGService
                 sprintf(' --mcast-data-address %s', $address) :
                 null
             ),
+            (
+                $multicastrdv ?
+                sprintf(' --mcast-rdv-address %s', $multicastrdv) :
+                null
+            ),
             sprintf(' --portbase %s', $this->getPortBase()),
             sprintf(' %s', $duplex),
             ' --ttl 32',
             ' --nokbd',
-            ' --nopointopoint;',
+            ' --nopointopoint',
         );
         $buildcmd = array_values(array_filter($buildcmd));
         switch ($this->getImageType()) {
@@ -582,13 +589,7 @@ class MulticastTask extends FOGService
         ob_start();
         foreach ($filelist as $i => &$file) {
             printf(
-                'cat %s%s%s | %s',
-                rtrim(
-                    $this->getImagePath(),
-                    DIRECTORY_SEPARATOR
-                ),
-                DIRECTORY_SEPARATOR,
-                $file,
+                '%s --file %s%s%s;',
                 sprintf(
                     implode($buildcmd),
                     (
@@ -596,7 +597,13 @@ class MulticastTask extends FOGService
                         $maxwait * 60 :
                         10
                     )
-                )
+                ),
+                rtrim(
+                    $this->getImagePath(),
+                    DS
+                ),
+                DS,
+                $file
             );
             unset($file);
         }
@@ -640,7 +647,7 @@ class MulticastTask extends FOGService
     {
         $find = array(
             'id' => self::getSubObjectIDs(
-                'MulticastSessionsAssociation',
+                'MulticastSessionAssociation',
                 array('msID' => $this->_intID),
                 'taskID'
             )

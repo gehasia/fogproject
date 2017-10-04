@@ -21,15 +21,22 @@
  */
 require '../commons/base.inc.php';
 $FOGPageManager = FOGCore::getClass('FOGPageManager');
-if (isset($_SESSION['delitems'])
-    && !in_array($sub, array('deletemulti', 'deleteconf'))
-) {
-    unset($_SESSION['delitems']);
+if (session_status() != PHP_SESSION_NONE) {
+    if (isset($_SESSION['delitems'])
+        && !in_array($sub, array('deletemulti', 'deleteconf'))
+    ) {
+        unset($_SESSION['delitems']);
+    }
 }
 FOGCore::getClass('ProcessLogin')->processMainLogin();
 require '../commons/text.php';
 $Page = FOGCore::getClass('Page');
-if (!in_array($node, array('schema', 'client'))
+$nodes = array(
+    'schema',
+    'client',
+    'ipxe'
+);
+if (!in_array($node, $nodes)
     && ($node == 'logout' || !$currentUser->isValid())
 ) {
     $currentUser->logout();
@@ -43,16 +50,17 @@ if (!in_array($node, array('schema', 'client'))
         ->endBody()
         ->render();
 } else {
-    $_SESSION['AllowAJAXTasks'] = true;
     if (FOGCore::$ajax) {
         $FOGPageManager->render();
         exit;
     }
     $Page->startBody();
     $FOGPageManager->render();
-    $Page
-        ->setTitle($FOGPageManager->getFOGPageTitle())
-        ->setSecTitle($FOGPageManager->getFOGPageName());
+    if ($FOGPageManager->getFOGPageName() !== $FOGPageManager->getFOGPageTitle()) {
+        $Page
+            ->setTitle($FOGPageManager->getFOGPageTitle());
+    }
+    $Page->setSecTitle($FOGPageManager->getFOGPageName());
     $Page
         ->endBody()
         ->render();

@@ -76,6 +76,7 @@ class FOGPageManager extends FOGBase
         } else {
             $this->classValue = 'home';
         }
+        $this->loadPageClasses();
         $this->methodValue = $this->_replaceVariable($sub);
         self::$HookManager->processEvent(
             'SEARCH_PAGES',
@@ -123,44 +124,7 @@ class FOGPageManager extends FOGBase
         }
         $class = $this->getFOGPageClass();
         self::$FOGSubMenu = self::getClass('FOGSubMenu');
-        foreach ((array)$class->menu as $link => &$title) {
-            self::$FOGSubMenu
-                ->addItems(
-                    $this->classValue,
-                    array((string)$title => (string)$link)
-                );
-            unset($title, $link);
-        }
-        if (!is_object($class->obj)) {
-            return sprintf(
-                '<div id="sidebar">%s</div>',
-                self::$FOGSubMenu->get($this->classValue)
-            );
-        }
-        foreach ((array)$class->subMenu as $link => &$title) {
-            self::$FOGSubMenu->addItems(
-                $this->classValue,
-                array((string)$title => (string)$link),
-                $class->id,
-                sprintf(
-                    self::$foglang['SelMenu'],
-                    get_class($class->obj)
-                )
-            );
-            unset($title, $link);
-        }
-        foreach ((array)$class->notes as $link => &$title) {
-            self::$FOGSubMenu->addNotes(
-                $this->classValue,
-                array((string)$title => (string)$link),
-                $class->id
-            );
-            unset($title, $link);
-        }
-        return sprintf(
-            '<div id="sidebar">%s</div>',
-            self::$FOGSubMenu->get($this->classValue)
-        );
+        return self::$FOGSubMenu->get($this->classValue);
     }
     /**
      * Prints the data to the browser/screen
@@ -172,14 +136,14 @@ class FOGPageManager extends FOGBase
         global $node;
         $nodes = array(
             'client',
-            'schema'
+            'schema',
+            'ipxe'
         );
         if (!self::$FOGUser->isValid()
             && !in_array($node, $nodes)
         ) {
             return;
         }
-        $this->_loadPageClasses();
         $method = $this->methodValue;
         try {
             $class = $this->getFOGPageClass();
@@ -189,21 +153,20 @@ class FOGPageManager extends FOGBase
             if (empty($method) || !method_exists($class, $method)) {
                 $method = 'index';
             }
-            $displayScreen = $_SESSION['FOG_VIEW_DEFAULT_SCREEN'];
+            $displayScreen = self::$defaultscreen;
             $displayScreen = strtolower($displayScreen);
             $displayScreen = trim($displayScreen);
             if (!array_key_exists($this->classValue, $this->_nodes)) {
                 throw new Exception(_('No FOGPage Class found for this node'));
             }
-            if (isset($_REQUEST[$class->id])
-                && $_REQUEST[$class->id]
-            ) {
-                $this->_arguments = array('id' => $_REQUEST[$class->id]);
+            $id = filter_input(INPUT_GET, $class->id);
+            if ($id) {
+                $this->_arguments = array('id' => $id);
             }
             if (self::$post) {
-                $this->setRequest();
+                self::setRequest();
             } else {
-                $this->resetRequest();
+                self::resetRequest();
             }
             if ($this->classValue != 'schema'
                 && $method == 'index'
@@ -253,8 +216,10 @@ class FOGPageManager extends FOGBase
                 $class->attributes
             );
         }
-        $class->{$method}();
-        $this->resetRequest();
+        if (method_exists($class, $method)) {
+            $class->{$method}();
+        }
+        self::resetRequest();
     }
     /**
      * Registers the class for display
@@ -300,16 +265,28 @@ class FOGPageManager extends FOGBase
      *
      * @return void
      */
-    private function _loadPageClasses()
+    public function loadPageClasses()
     {
         global $node;
-        $regext = '#^.+/pages/.*\.class\.php$#';
-        $dirpath = '/pages/';
+        $regext = sprintf(
+            '#^.+%spages%s.*\.class\.php$#',
+            DS,
+            DS
+        );
+        $dirpath = sprintf(
+            '%spages%s',
+            DS,
+            DS
+        );
         $strlen = -strlen('.class.php');
         $plugins = '';
         $fileitems = function ($element) use ($dirpath, &$plugins) {
             preg_match(
-                "#^($plugins.+/plugins/)(?=.*$dirpath).*$#",
+                sprintf(
+                    "#^($plugins.+%splugins%s)(?=.*$dirpath).*$#",
+                    DS,
+                    DS
+                ),
                 $element[0],
                 $match
             );
@@ -347,8 +324,10 @@ class FOGPageManager extends FOGBase
             array_filter(
                 preg_grep(
                     sprintf(
-                        '#/(%s)/#',
-                        implode('|', $_SESSION['PluginsInstalled'])
+                        '#%s(%s)%s#',
+                        DS,
+                        implode('|', self::$pluginsinstalled),
+                        DS
                     ),
                     array_map(
                         $fileitems,
@@ -369,20 +348,28 @@ class FOGPageManager extends FOGBase
         );
         unset($normalfiles, $pluginfiles);
         $startClass = function ($element) use ($strlen, $node) {
-            if (substr($element, $strlen) !== '.class.php') {
+            if (substr($element, $strlen) !== '.class.php'
+                && substr($element, $strlen) !== '.report.php'
+            ) {
                 return;
             }
             $className = substr(basename($element), 0, $strlen);
+            if ($node == 'report'
+                && filter_input(INPUT_GET, 'f')
+            ) {
+                $className = str_replace(
+                    ' ',
+                    '_',
+                    base64_decode(
+                        filter_input(INPUT_GET, 'f')
+                    )
+                );
+            }
             if (!$className || !isset($className)) {
                 return;
             }
             if (in_array($className, get_declared_classes())
                 || class_exists($className, false)
-            ) {
-                return;
-            }
-            if ((self::$isMobile && !preg_match('#mobile#i', $className))
-                || (!self::$isMobile && preg_match('#mobile#i', $className))
             ) {
                 return;
             }

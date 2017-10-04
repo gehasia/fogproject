@@ -448,7 +448,7 @@ $this->schema[] = array(
     . "','Web Server'),"
     . "('FOG_WEB_ROOT','This setting defines the path to the "
     . "fog webserver\'s root directory.','"
-    . WEB_ROOT
+    . '/fog/'
     . "','Web Server'),"
     . "('FOG_WOL_HOST','This setting defines the ip address "
     . "of hostname for the server hosting the Wake-on-lan service.','"
@@ -1792,7 +1792,12 @@ $this->schema[] = array(
     . "WHERE `settingKey`='FOG_TFTP_PXE_KERNEL'",
     "UPDATE `globalSettings` set `settingValue` = '"
     . BASEPATH
-    . "/service/ipxe/' WHERE settingKey = 'FOG_TFTP_PXE_KERNEL_DIR'",
+    . DS
+    . "service"
+    . DS
+    . "ipxe"
+    . DS
+    . "' WHERE settingKey = 'FOG_TFTP_PXE_KERNEL_DIR'",
     "UPDATE `globalSettings` set `settingValue`='init.xz' "
     . "WHERE `settingKey`='FOG_PXE_BOOT_IMAGE'",
     "UPDATE `globalSettings` set `settingValue`='memtest.bin' "
@@ -1978,7 +1983,7 @@ $this->schema[] = array(
     . "'jPlUQRw5vLsrz8I1TuZdWDSiMFqXHtcm','FOG Client')",
 );
 // 119
-$column = array_filter((array)self::$DB->getColumns('default', 'modules'));
+$column = array_filter((array)DatabaseManager::getColumns('default', 'modules'));
 $this->schema[] = count($column) > 0 ? array() : array(
     "ALTER TABLE `modules` ADD COLUMN `default` INT "
     . "DEFAULT 1 NOT NULL AFTER `description`"
@@ -2197,7 +2202,7 @@ $this->schema[] = array(
 );
 // 132
 $column = array_filter(
-    (array)self::$DB->getColumns(
+    (array)DatabaseManager::getColumns(
         'ipxeVersion',
         'ipxeTable'
     )
@@ -2570,20 +2575,14 @@ $this->schema[] = self::fastmerge(
         DATABASE_NAME,
         array(
             'hostAutoLogOut',
-            array(
-                'haloHostID',
-                'haloTime'
-            )
+            array('haloHostID')
         )
     ),
     $tmpSchema->dropDuplicateData(
         DATABASE_NAME,
         array(
             'hostMAC',
-            array(
-                'hmHostID',
-                'hmMAC'
-            )
+            array('hmMAC')
         )
     ),
     $tmpSchema->dropDuplicateData(
@@ -2631,10 +2630,7 @@ $this->schema[] = self::fastmerge(
         DATABASE_NAME,
         array(
             'nfsGroupMembers',
-            array(
-                'ngmMemberName',
-                'ngmGroupID'
-            )
+            array('ngmMemberName')
         )
     ),
     $tmpSchema->dropDuplicateData(
@@ -2976,8 +2972,8 @@ $this->schema[] = array(
     . "(`settingKey`, `settingDesc`, `settingValue`, `settingCategory`) "
     . "VALUES "
     . "('FOG_EFI_BOOT_EXIT_TYPE','The method (U)EFI uses to boot the "
-    . "next boot entry/hard drive. Most will require exit.',"
-    . "'exit','FOG Boot Settings')",
+    . "next boot entry/hard drive. Most will require exit. (Default REFIND)',"
+    . "'refind_efi','FOG Boot Settings')",
 );
 // 193
 $this->schema[] = array(
@@ -3453,7 +3449,7 @@ $this->schema[] = array(
 );
 // 236
 $this->schema[] = array(
-    self::$DB->getColumns('multicastSessions', 'msAnon1') > 0 ?
+    DatabaseManager::getColumns('multicastSessions', 'msAnon1') > 0 ?
     'ALTER TABLE `multicastSessions`'
     . 'CHANGE `msAnon1` `msIsDD` INTEGER NOT NULL' :
     '',
@@ -3600,4 +3596,179 @@ $this->schema[] = array(
     . "('FOG_LOGIN_INFO_DISPLAY', 'This setting defines if the login page"
     . " should or should not display fog version information. (Default is "
     . "on)','1','General Settings')"
+);
+// 246
+$this->schema[] = $tmpSchema->dropDuplicateData(
+    DATABASE_NAME,
+    array(
+        'hostMAC',
+        array('hmMAC')
+    )
+);
+// 247
+$this->schema[] = array(
+    "INSERT IGNORE INTO `globalSettings` "
+    . "(`settingKey`, `settingDesc`, `settingValue`, `settingCategory`) "
+    . "VALUES "
+    . "('IMAGEREPLICATORGLOBALENABLED','This setting defines if replication "
+    . "of images should occur (Default is enabled)',"
+    . "'1','FOG Linux Service Enabled'),"
+    . "('SNAPINREPLICATORGLOBALENABLED','This setting defines if replication "
+    . "of snapins should occur (Default is enabled)',"
+    . "'1','FOG Linux Service Enabled'),"
+    . "('SNAPINHASHGLOBALENABLED','This setting defines if hashing "
+    . "of snapins should occur (Default is enabled)',"
+    . "'1','FOG Linux Service Enabled'),"
+    . "('PINGHOSTGLOBALENABLED','This setting defines if ping hosts "
+    . "should occur (Default is enabled)',"
+    . "'1','FOG Linux Service Enabled'),"
+    . "('SCHEDULERGLOBALENABLED','This setting defines if scheduler "
+    . "service should occur (Default is enabled)',"
+    . "'1','FOG Linux Service Enabled'),"
+    . "('MULTICASTGLOBALENABLED','This setting defines if multicast "
+    . "service should occur (Default is enabled)',"
+    . "'1','FOG Linux Service Enabled')"
+);
+// 248
+$this->schema[] = array(
+    "INSERT IGNORE INTO `globalSettings` "
+    . "(`settingKey`, `settingDesc`, `settingValue`, `settingCategory`) "
+    . "VALUES "
+    . "('FOG_MULTICAST_RENDEZVOUS', 'This setting defines a rendez-vous"
+    . " for multicast tasks. (Default is empty)','','Multicast Settings')"
+);
+// 249
+$this->schema[] = array(
+    "INSERT IGNORE INTO `globalSettings` "
+    . "(`settingKey`, `settingDesc`, `settingValue`, `settingCategory`) "
+    . "VALUES "
+    . "('FOG_QUICKREG_IMG_WHEN_REG','Image upon completion"
+    . " of registration. Values are 0 or 1, default is 1."
+    . " This will only image clients if the image value is"
+    . " defined as well.','0', 'FOG Quick Registration')"
+);
+// 250
+$this->schema[] = array(
+    "ALTER TABLE `images` ADD `imageServerSize` BIGINT UNSIGNED NOT NULL DEFAULT 0",
+    "INSERT IGNORE INTO `globalSettings` "
+    . "(`settingKey`, `settingDesc`, `settingValue`, `settingCategory`) "
+    . "VALUES "
+    . "('IMAGESIZEGLOBALENABLED','This setting defines if image size should be "
+    . "enabled or not. (Default is enabled)',"
+    . "'1', 'FOG Linux Service Enabled'),"
+    . "('IMAGESIZESLEEPTIME','The amount of time between image "
+    . "size service runs. Value is in seconds. (Default 3600)',"
+    . "'3600','FOG Linux Service Sleep Times'),"
+    . "('IMAGESIZELOGFILENAME','Filename to store the image size log "
+    . "file to (Default fogimagesize.log)','fogimagesize.log',"
+    . "'FOG Linux Service Logs'),"
+    . "('IMAGESIZEDEVICEOUTPUT','The tty to output to for image "
+    . "size service. (Default /dev/tty3)','/dev/tty3',"
+    . "'FOG Linux Service TTY Output')"
+);
+// 251
+$this->schema[] = $tmpSchema->dropDuplicateData(
+    DATABASE_NAME,
+    array(
+        'globalSettings',
+        array('settingKey')
+    )
+);
+// 252
+$this->schema[] = array(
+    "INSERT IGNORE INTO `globalSettings` "
+    . "(`settingKey`,`settingDesc`,`settingValue`,`settingCategory`) "
+    . "VALUES "
+    . "('FOG_IMAGE_COMPRESSION_FORMAT_DEFAULT',"
+    . "'Compression Format Setting (Default to PIGZ non-split)',"
+    . "'1','General Settings'),"
+    . "('FOG_TASKING_ADV_SHUTDOWN_ENABLED',"
+    . "'Tasking shutdown element checked (Default is off)',"
+    . "'0','General Settings'),"
+    . "('FOG_TASKING_ADV_WOL_ENABLED',"
+    . "'Tasking wake on lan element checked (Default is on)',"
+    . "'1','General Settings'),"
+    . "('FOG_TASKING_ADV_DEBUG_ENABLED',"
+    . "'Tasking debug element checked (Default is off)',"
+    . "'0','General Settings')"
+);
+// 253
+$this->schema[] = array(
+    "ALTER TABLE `users` ADD `uDisplay` VARCHAR(255) "
+    . "NOT NULL AFTER `uType`"
+);
+// 254
+$this->schema[] = array(
+    "CREATE TABLE `hookEvents` ("
+    . "`heID` INT NOT NULL AUTO_INCREMENT,"
+    . "`heName` VARCHAR(255) NOT NULL,"
+    . "PRIMARY KEY(`heID`),"
+    . "UNIQUE INDEX `name` (`heName`)"
+    . ") ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC",
+    "CREATE TABLE `notifyEvents` ("
+    . "`neID` INT NOT NULL AUTO_INCREMENT,"
+    . "`neName` VARCHAR(255) NOT NULL,"
+    . "PRIMARY KEY(`neID`),"
+    . "UNIQUE INDEX `name` (`neName`)"
+    . ") ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC",
+);
+// 255
+$this->schema[] = array(
+    "ALTER TABLE `pxeMenu` ADD `pxeHotKeyEnable` ENUM('0','1') NOT NULL",
+    "ALTER TABLE `pxeMenu` ADD `pxeKeySequence` VARCHAR(255) NOT NULL"
+);
+// 256
+$this->schema[] = array(
+    "INSERT IGNORE INTO `globalSettings` "
+    . "(`settingKey`,`settingDesc`,`settingValue`,`settingCategory`) "
+    . "VALUES "
+    . "('FOG_API_ENABLED',"
+    . "'Enables API Access (Defaults to off)',"
+    . "'0','API System'),"
+    . "('FOG_API_TOKEN',"
+    . "'The API Token to use (Randomly generated at install)',"
+    . "'"
+    . self::createSecToken()
+    . "','API System')"
+);
+// 257
+$this->schema[] = array(
+    "INSERT IGNORE INTO `globalSettings` "
+    . "(`settingKey`,`settingDesc`,`settingValue`,`settingCategory`) "
+    . "VALUES "
+    . "('FOG_IMAGE_LIST_MENU',"
+    . "'Enables Image list on boot menu deploy image (Defaults to on)',"
+    . "'1','FOG Boot Settings')"
+);
+// 258
+$this->schema[] = array(
+    "DELETE FROM `taskTypes` WHERE `ttID` IN (23, 24)",
+    "DELETE FROM `globalSettings` WHERE `settingKey` LIKE 'FOG_MINING%'",
+    "ALTER TABLE `taskTypes` auto_increment=1",
+    "ALTER TABLE `globalSettings` auto_increment=1"
+);
+// 259
+$this->schema[] = array(
+    "ALTER TABLE `users` ADD `uAllowAPI` ENUM('0','1') NOT NULL DEFAULT '1'",
+    "ALTER TABLE `users` ADD `uAPIToken` VARCHAR(255) NOT NULL"
+);
+// 260
+$this->schema[] = array(
+    "INSERT IGNORE INTO `globalSettings` "
+    . "(`settingKey`,`settingDesc`,`settingValue`,`settingCategory`) "
+    . "VALUES "
+    . "('FOG_REAUTH_ON_DELETE',"
+    . "'If deleteing an item, require authentication or not. (Defaults to on)',"
+    . "'1','General Settings'),"
+    . "('FOG_REAUTH_ON_EXPORT',"
+    . "'If exporting, require authentication or not. (Defaults to on)',"
+    . "'1','General Settings')"
+);
+// 261
+$this->schema[] = array(
+    "ALTER TABLE `inventory` ADD `iSystemUUID` VARCHAR(255) NOT NULL"
+);
+// 262
+$this->schema[] = array(
+    "ALTER TABLE `taskTypes` ADD `ttInitrd` LONGTEXT NOT NULL"
 );

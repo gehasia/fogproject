@@ -144,7 +144,7 @@ abstract class FOGController extends FOGBase
                 _('Error'),
                 $e->getMessage()
             );
-            $this->error($str);
+            self::error($str);
         }
 
         return $this;
@@ -215,30 +215,14 @@ abstract class FOGController extends FOGBase
         if (!$this->isLoaded($key)) {
             $this->loadItem($key);
         }
-        if (is_object($this->data[$key])) {
-            $msg = sprintf(
-                '%s: %s, %s: %s',
-                _('Returning value of key'),
-                $key,
-                _('Object'),
-                $this->data[$key]->__toString()
-            );
-        } elseif (is_array($this->data[$key])) {
-            $msg = sprintf(
-                '%s: %s',
-                _('Returning array within key'),
-                $key
-            );
-        } else {
-            $msg = sprintf(
-                '%s: %s, %s: %s',
-                _('Returning value of key'),
-                $key,
-                _('Value'),
-                $this->data[$key]
-            );
-        }
-        $this->info($msg);
+        $msg = sprintf(
+            '%s: %s, %s: %s',
+            _('Returning value of key'),
+            $key,
+            _('Value'),
+            print_r($this->data[$key], 1)
+        );
+        self::info($msg);
 
         return $this->data[$key];
     }
@@ -269,31 +253,14 @@ abstract class FOGController extends FOGBase
             if (is_numeric($value) && $value < ($key == 'id' ? 1 : -1)) {
                 throw new Exception(_('Invalid numeric entry'));
             }
-            if (is_object($value)) {
-                $msg = sprintf(
-                    '%s: %s, %s: %s',
-                    _('Setting Key'),
-                    $key,
-                    _('Object'),
-                    $value->__toString()
-                );
-            } elseif (is_array($value)) {
-                $msg = sprintf(
-                    '%s: %s %s',
-                    _('Setting Key'),
-                    $key,
-                    _('Array')
-                );
-            } else {
-                $msg = sprintf(
-                    '%s: %s, %s: %s',
-                    _('Setting Key'),
-                    $key,
-                    _('Value'),
-                    $value
-                );
-            }
-            $this->info($msg);
+            $msg = sprintf(
+                '%s: %s, $s: %s',
+                _('Setting Key'),
+                $key,
+                _('Value'),
+                print_r($value, 1)
+            );
+            self::info($msg);
             $this->data[$key] = $value;
         } catch (Exception $e) {
             $str = sprintf(
@@ -304,7 +271,7 @@ abstract class FOGController extends FOGBase
                 _('Error'),
                 $e->getMessage()
             );
-            $this->debug($str);
+            self::debug($str);
         }
 
         return $this;
@@ -333,31 +300,14 @@ abstract class FOGController extends FOGBase
             if (!$this->isLoaded($key)) {
                 $this->loadItem($key);
             }
-            if (is_object($value)) {
-                $msg = sprintf(
-                    '%s: %s, %s: %s',
-                    _('Adding Key'),
-                    $key,
-                    _('Object'),
-                    $value->__toString()
-                );
-            } elseif (is_array($value)) {
-                $msg = sprintf(
-                    '%s: %s %s',
-                    _('Adding Key'),
-                    $key,
-                    _('Array')
-                );
-            } else {
-                $msg = sprintf(
-                    '%s: %s, %s: %s',
-                    _('Adding Key'),
-                    $key,
-                    _('Value'),
-                    $value
-                );
-            }
-            $this->info($msg);
+            $msg = sprintf(
+                '%s: %s, %s: %s',
+                _('Adding Key'),
+                $key,
+                _('Value'),
+                print_r($value, 1)
+            );
+            self::info($msg);
             $this->data[$key][] = $value;
         } catch (Exception $e) {
             $str = sprintf(
@@ -368,7 +318,7 @@ abstract class FOGController extends FOGBase
                 _('Error'),
                 $e->getMessage()
             );
-            $this->debug($str);
+            self::debug($str);
         }
 
         return $this;
@@ -402,31 +352,14 @@ abstract class FOGController extends FOGBase
             }
             $this->data[$key] = array_unique($this->data[$key]);
             $index = array_search($value, $this->data[$key]);
-            if (is_object($this->data[$key][$index])) {
-                $msg = sprintf(
-                    '%s: %s, %s: %s',
-                    _('Removing Key'),
-                    $key,
-                    _('Object'),
-                    $this->data[$key][$index]->__toString()
-                );
-            } elseif (is_array($this->data[$key][$index])) {
-                $msg = sprintf(
-                    '%s: %s %s',
-                    _('Removing Key'),
-                    $key,
-                    _('Array')
-                );
-            } else {
-                $msg = sprintf(
-                    '%s: %s, %s: %s',
-                    _('Removing Key'),
-                    $key,
-                    _('Value'),
-                    $this->data[$key][$index]
-                );
-            }
-            $this->info($msg);
+            $msg = sprintf(
+                '%s: %s, %s: %s',
+                _('Removing Key'),
+                $key,
+                _('Value'),
+                print_r($this->data[$key][$index], 1)
+            );
+            self::info($msg);
             unset($this->data[$key][$index]);
             $this->data[$key] = array_values(array_filter($this->data[$key]));
         } catch (Exception $e) {
@@ -438,7 +371,7 @@ abstract class FOGController extends FOGBase
                 _('Error'),
                 $e->getMessage()
             );
-            $this->debug($str);
+            self::debug($str);
         }
 
         return $this;
@@ -456,7 +389,7 @@ abstract class FOGController extends FOGBase
             $insertValues = $updateValues = array();
             $updateData = $fieldData = array();
             if (count($this->aliasedFields) > 0) {
-                $this->arrayRemove($this->aliasedFields, $this->databaseFields);
+                self::arrayRemove($this->aliasedFields, $this->databaseFields);
             }
             foreach ($this->databaseFields as $key => &$column) {
                 $key = $this->key($key);
@@ -467,8 +400,8 @@ abstract class FOGController extends FOGBase
                 switch ($key) {
                 case 'createdBy':
                     if (!$val) {
-                        if (isset($_SESSION['FOG_USERNAME'])) {
-                            $val = trim($_SESSION['FOG_USERNAME']);
+                        if (self::$FOGUser->isValid()) {
+                            $val = trim(self::$FOGUser->get('name'));
                         } else {
                             $val = 'fog';
                         }
@@ -521,7 +454,7 @@ abstract class FOGController extends FOGBase
                 get_class($this),
                 _('object')
             );
-            $this->info($msg);
+            self::info($msg);
             self::$DB->query($query, array(), $queryArray);
             if (!$this->get('id') || $this->get('id') < 1) {
                 $this->set('id', self::$DB->insertId());
@@ -546,7 +479,7 @@ abstract class FOGController extends FOGBase
                         _('has been successfully updated')
                     );
                 }
-                $this->logHistory($msg);
+                self::logHistory($msg);
             }
         } catch (Exception $e) {
             if (!$this instanceof History) {
@@ -573,7 +506,7 @@ abstract class FOGController extends FOGBase
                         $e->getMessage()
                     );
                 }
-                $this->logHistory($msg);
+                self::logHistory($msg);
             }
             $msg = sprintf(
                 '%s: %s: %s, %s: %s',
@@ -583,7 +516,7 @@ abstract class FOGController extends FOGBase
                 _('Error'),
                 $e->getMessage()
             );
-            $this->debug($msg);
+            self::debug($msg);
 
             return false;
         }
@@ -652,15 +585,17 @@ abstract class FOGController extends FOGBase
                 _('Loading data to field'),
                 $key
             );
-            $this->info($msg);
+            self::info($msg);
             $queryArray = array_combine(
                 (array) $paramKey,
                 (array) $val
             );
-            $vals = array();
-            $vals = self::$DB->query($query, array(), $queryArray)
-                ->fetch('', 'fetch_assoc')
-                ->get();
+            self::$DB->query(
+                $query,
+                array(),
+                $queryArray
+            );
+            $vals = self::$DB->fetch()->get();
             $this->setQuery($vals);
         } catch (Exception $e) {
             $str = sprintf(
@@ -671,7 +606,7 @@ abstract class FOGController extends FOGBase
                 _('Error'),
                 $e->getMessage()
             );
-            $this->debug($str);
+            self::debug($str);
         }
 
         return $this;
@@ -697,7 +632,9 @@ abstract class FOGController extends FOGBase
             unset($column, $k);
         };
         $table = $this->databaseTable;
-        array_walk($this->databaseFields, $getFields);
+        if (count($this->databaseFields) > 0) {
+            array_walk($this->databaseFields, $getFields);
+        }
         foreach ((array)$this->databaseFieldClassRelationships as $class => &$arr) {
             self::getClass($class)->getcolumns($fields);
             unset($arr);
@@ -776,7 +713,7 @@ abstract class FOGController extends FOGBase
                         _('has been successfully destroyed')
                     );
                 }
-                $this->logHistory($msg);
+                self::logHistory($msg);
             }
         } catch (Exception $e) {
             if (!$this instanceof History) {
@@ -803,7 +740,7 @@ abstract class FOGController extends FOGBase
                         $e->getMessage()
                     );
                 }
-                $this->logHistory($msg);
+                self::logHistory($msg);
             }
             $msg = sprintf(
                 '%s: %s: %s, %s: %s',
@@ -813,7 +750,7 @@ abstract class FOGController extends FOGBase
                 _('Error'),
                 $e->getMessage()
             );
-            $this->debug($msg);
+            self::debug($msg);
 
             return false;
         }
@@ -827,7 +764,7 @@ abstract class FOGController extends FOGBase
      *
      * @return mixed
      */
-    protected function key(&$key)
+    public function key(&$key)
     {
         $key = trim($key);
         if (array_key_exists($key, $this->databaseFieldsFlipped)) {
@@ -914,10 +851,9 @@ abstract class FOGController extends FOGBase
             return $this;
         }
         $array = $array_type(
-            (array) $this->get($key),
-            (array) $array
+            (array)$this->get($key),
+            (array)$array
         );
-
         return $this->set($key, $array);
     }
     /**
@@ -951,7 +887,7 @@ abstract class FOGController extends FOGBase
                 _('Error'),
                 $e->getMessage()
             );
-            $this->debug($str);
+            self::debug($str);
 
             return false;
         }
@@ -999,7 +935,7 @@ abstract class FOGController extends FOGBase
                     implode("','", $value)
                 );
             } else {
-                if (preg_match('#%#', $value)) {
+                if (strpos($value, '%')) {
                     $compare = 'LIKE';
                 }
                 $whereArrayAnd[] = sprintf(
@@ -1051,8 +987,9 @@ abstract class FOGController extends FOGBase
         if (!array_key_exists($className, $join)) {
             $join[$className] = false;
         }
-        array_walk($this->databaseFieldClassRelationships, $joinInfo);
-
+        if (count($this->databaseFieldClassRelationships) > 0) {
+            array_walk($this->databaseFieldClassRelationships, $joinInfo);
+        }
         return array(implode((array) $join), $whereArrayAnd);
     }
     /**
@@ -1075,7 +1012,7 @@ abstract class FOGController extends FOGBase
             );
         } else {
             foreach ($this->databaseFieldsFlipped as $db_key => &$obj_key) {
-                $this->arrayChangeKey($classData, $db_key, $obj_key);
+                self::arrayChangeKey($classData, $db_key, $obj_key);
                 unset($db_key, $obj_key);
             }
         }
@@ -1142,31 +1079,28 @@ abstract class FOGController extends FOGBase
         $objtype = strtolower($objType);
         $objstr = sprintf('%sID', $objtype);
         $assocstr = sprintf('%sID', $assoc);
+        $lalter = strtolower($alteritem);
+        $gitems = array(
+            'storagegroup',
+            'snapingroup'
+        );
         if (count($this->get($plural))) {
-            if ($assocItem === 'SnapinGroup') {
+            if (in_array($lalter, $gitems)) {
                 $tmpAssoc = $assocItem;
-                $assocItem = 'StorageGroup';
+                $assocItem = $alterItem;
             }
-            $DBIDs = self::getSubObjectIDs(
-                $assocItem,
-                array('id' => $this->get($plural))
-            );
+            $AllIDs = self::getSubObjectIDs($alterItem);
+            $DBIDs = $this->get($plural);
             if ($tmpAssoc) {
                 $assocItem = $tmpAssoc;
                 unset($tmpAssoc);
             }
+            $RemIDs = array_diff(
+                (array)$AllIDs,
+                (array)$DBIDs
+            );
         } else {
             $RemIDs = self::getSubObjectIDs($assoc);
-        }
-        if (!isset($RemIDs)) {
-            $RemIDs = self::getSubObjectIDs(
-                $classCall,
-                array(
-                    $assocstr => $DBIDs,
-                ),
-                $assocstr,
-                true
-            );
         }
         $RemIDs = array_filter($RemIDs);
         if (count($RemIDs) > 0) {

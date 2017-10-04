@@ -48,6 +48,37 @@ class AddServiceConfiguration extends Hook
      */
     public $node = 'location';
     /**
+     * Initialize object.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        parent::__construct();
+        self::$HookManager
+            ->register(
+                'SNAPIN_CLIENT_SERVICE',
+                array(
+                    $this,
+                    'addServiceCheckbox'
+                )
+            )
+            ->register(
+                'SNAPIN_CLIENT_SERVICE_POST',
+                array(
+                    $this,
+                    'updateGlobalSetting'
+                )
+            )
+            ->register(
+                'SERVICE_NAMES',
+                array(
+                    $this,
+                    'addServiceNames'
+                )
+            );
+    }
+    /**
      * Add the service checkbox.
      *
      * @param mixed $arguments The arguments to change.
@@ -57,7 +88,7 @@ class AddServiceConfiguration extends Hook
     public function addServiceCheckbox($arguments)
     {
         global $node;
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         if ($node != 'service') {
@@ -74,7 +105,8 @@ class AddServiceConfiguration extends Hook
         echo '<br/><br/>';
         $fields = array(
             _('Enable location Sending') => sprintf(
-                '<input type="checkbox" name="snapinsend"%s/>',
+                '<input type="checkbox" name="snapinsend" id="snapsend"%s/>'
+                . '<label for="snapsend"></label>',
                 (
                     isset($_REQUEST['snapinsend']) ?
                     ' checked' :
@@ -95,8 +127,8 @@ class AddServiceConfiguration extends Hook
             $arguments['page']->data
         );
         $arguments['page']->attributes = array(
-            array(),
-            array('class' => 'r'),
+            array('class' => 'col-xs-4'),
+            array('class' => 'col-xs-8 form-group')
         );
         $arguments['page']->templates = array(
             '${field}',
@@ -126,7 +158,7 @@ class AddServiceConfiguration extends Hook
     public function updateGlobalSetting($arguments)
     {
         global $node;
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         if ($node != 'service') {
@@ -154,7 +186,7 @@ class AddServiceConfiguration extends Hook
     {
         global $node;
         global $sub;
-        if (!in_array($this->node, (array)$_SESSION['PluginsInstalled'])) {
+        if (!in_array($this->node, (array)self::$pluginsinstalled)) {
             return;
         }
         if ($node != 'about') {
@@ -166,28 +198,3 @@ class AddServiceConfiguration extends Hook
         $arguments['ServiceNames'][] = 'FOG_SNAPIN_LOCATION_SEND_ENABLED';
     }
 }
-$AddServiceConfiguration = new AddServiceConfiguration();
-$HookManager
-    ->register(
-        'SNAPIN_CLIENT_SERVICE',
-        array(
-            $AddServiceConfiguration,
-            'addServiceCheckbox'
-        )
-    );
-$HookManager
-    ->register(
-        'SNAPIN_CLIENT_SERVICE_POST',
-        array(
-            $AddServiceConfiguration,
-            'updateGlobalSetting'
-        )
-    );
-$HookManager
-    ->register(
-        'SERVICE_NAMES',
-        array(
-            $AddServiceConfiguration,
-            'addServiceNames'
-        )
-    );

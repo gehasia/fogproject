@@ -34,6 +34,12 @@
 class Initiator
 {
     /**
+     * Our sanitization.
+     *
+     * @var callable
+     */
+    private static $_sanitizeItems;
+    /**
      * Constructs the initiator class
      *
      * @return void
@@ -41,11 +47,33 @@ class Initiator
     public function __construct()
     {
         /**
+         * Lambda to sanitize our user input data.
+         *
+         * @param mixed $key the key of the array.
+         * @param mixed $val the value of the array.
+         *
+         * @return void
+         */
+        self::$_sanitizeItems = function (&$val, &$key) use (&$value) {
+            if (is_string($val)) {
+                $value[$key] = htmlspecialchars(
+                    $val,
+                    ENT_QUOTES | ENT_HTML401,
+                    'utf-8'
+                );
+            }
+            if (is_array($val)) {
+                array_walk($val, self::$_sanitizeItems);
+            }
+            unset($val, $key);
+            return $value;
+        };
+        /**
          * Find out if the link has service in the call.
          */
-        $self = !preg_match(
-            '#service#i',
-            $_SERVER['PHP_SELF']
+        $self = false === stripos(
+            filter_input(INPUT_SERVER, 'PHP_SELF'),
+            'service'
         );
         /**
          * Set useragent to false.
@@ -54,12 +82,11 @@ class Initiator
         /**
          * If user agent is passed, define the useragent
          */
-        if (isset($_SERVER['HTTP_USER_AGENT'])) {
-            $useragent = $_SERVER['HTTP_USER_AGENT'];
-        }
+        $useragent = filter_input(INPUT_SERVER, 'HTTP_USER_AGENT');
         /**
          * Define our base path (/var/www/, /var/www/html/, etc...)
          */
+        define('DS', addslashes(DIRECTORY_SEPARATOR));
         define('BASEPATH', self::_determineBasePath());
         /**
          * Regex pattern to search for files of type.
@@ -120,47 +147,24 @@ class Initiator
                 get_include_path()
             )
         );
+        spl_autoload_extensions('.class.php,.event.php,.hook.php,.report.php');
         /**
          * Pass our autoloaded items through our custom loader method.
          */
-        spl_autoload_register(
-            function ($className) {
-                /**
-                 * Sanity check, if the classname is not a string fail.
-                 */
-                if (!is_string($className)) {
-                    throw new Exception(_('Classname must be a string'));
-                }
-                /**
-                 * If the class exists, we know it's already been loaded.
-                 * Return as we don't need to do anything.
-                 */
-                if (class_exists($className, false)) {
-                    return;
-                }
-                /**
-                 * Ensure the event and hook managers are available.
-                 * Really only needed for the respective class but
-                 * doesn't hurt to have in either case.
-                 */
-                global $EventManager;
-                global $HookManager;
-                /**
-                 * Load the class.
-                 */
-                spl_autoload(
-                    $className,
-                    '.class.php,.event.php,.hook.php,.report.php'
-                );
-            }
-        );
+        spl_autoload_register();
         /**
          * If we are not a service file
          * and we have a user agent string
          * and the Session hasn't been started,
          * Start the session.
          */
-        if ($self && $useragent && !isset($_SESSION)) {
+        $script = filter_input(INPUT_SERVER, 'SCRIPT_NAME');
+        if ($self
+            && $useragent
+            && file_exists(BASEPATH . $script)
+            && session_status() == PHP_SESSION_NONE
+            && false === stripos($script, '/api/')
+        ) {
             session_start();
         }
     }
@@ -177,7 +181,7 @@ class Initiator
         /**
          * If session isn't set return immediately.
          */
-        if (!isset($_SESSION)) {
+        if (session_status() != PHP_SESSION_NONE) {
             return;
         }
         $_SESSION[$key] = $value;
@@ -191,7 +195,7 @@ class Initiator
      */
     public static function unsetSession($key)
     {
-        if (!isset($_SESSION)) {
+        if (session_status() != PHP_SESSION_NONE) {
             return;
         }
         $_SESSION[$key] = ' ';
@@ -206,8 +210,8 @@ class Initiator
      */
     public static function getFromSession($key)
     {
-        if (!isset($_SESSION[$key])) {
-            return false;
+        if (session_status() != PHP_SESSION_NONE) {
+            return;
         }
         return $_SESSION[$key];
     }
@@ -220,26 +224,7 @@ class Initiator
      */
     public static function csrfGenToken($formname)
     {
-        if (function_exists('random_bytes')) {
-            $token = bin2hex(
-                random_bytes(64)
-            );
-        }
-        if (function_exists('mcrypt_create_iv')) {
-            $token = bin2hex(
-                mcrypt_create_iv(
-                    64,
-                    MCRYPT_DEV_URANDOM
-                )
-            );
-        }
-        if (function_exists('openssl_random_pseudo_bytes')) {
-            $token = bin2hex(
-                openssl_random_pseudo_bytes(
-                    64
-                )
-            );
-        }
+        $token = FOGCore::createSecToken();
         self::storeInSession($formname, $token);
     }
     /**
@@ -249,50 +234,11 @@ class Initiator
      */
     private static function _determineBasePath()
     {
-        /**
-         * Gets our script name and path.
-         */
-        $script_name = $_SERVER['SCRIPT_NAME'];
-        /**
-         * Stores our matching if fog is in the name variable
-         */
-        $match = preg_match('#/fog/#', $script_name);
-        if ($match) {
-            $match = 'fog/';
-        } else {
-            $match = '';
-        }
-        /**
-         * Defines our webroot path.
-         */
-        define(
-            'WEB_ROOT',
-            sprintf(
-                '/%s',
-                $match
-            )
+        return sprintf(
+            '%s%s',
+            dirname(__DIR__),
+            DS
         );
-        /**
-         * Check for /srv/http/fog, /var/www/html/fog, or /var/www/fog.
-         * Otherwise use the document root as defined by the server.
-         */
-        if (file_exists('/srv/http/fog')) {
-            $path = '/srv/http/fog';
-        } elseif (file_exists('/var/www/html/fog')) {
-            $path = '/var/www/html/fog';
-        } elseif (file_exists('/var/www/fog')) {
-            $path = '/var/www/fog';
-        } else {
-            $docroot = trim($_SERVER['DOCUMENT_ROOT'], '/');
-            $path = sprintf(
-                '/%s',
-                sprintf(
-                    '/%s',
-                    WEB_ROOT
-                )
-            );
-        }
-        return $path;
     }
     /**
      * Initiates the environment
@@ -360,39 +306,34 @@ class Initiator
      *
      * @param mixed $value the value to sanitize
      *
-     * @return string
+     * @return string|array
      */
     public static function sanitizeItems(&$value = '')
     {
-        /**
-         * Lambda to sanitize our user input data.
-         *
-         * @param mixed $key the key of the array.
-         * @param mixed $val the value of the array.
-         *
-         * @return void
-         */
-        $sanitize_items = function (&$val, &$key) use (&$value) {
-            if (is_string($val)) {
-                $value[$key] = htmlentities($val, ENT_QUOTES, 'utf-8');
-            }
-            if (is_array($val)) {
-                self::sanitizeItems($value[$key]);
-            }
-        };
         /**
          * If the value isn't specified, it will sanitize
          * all REQUEST, COOKIE, POST, and GET data.
          * Otherwise it will clean the passed value.
          */
         if (!count($value)) {
-            array_walk($_REQUEST, $sanitize_items);
-            array_walk($_COOKIE, $sanitize_items);
-            array_walk($_POST, $sanitize_items);
-            array_walk($_GET, $sanitize_items);
+            $process = array(
+                &$_GET,
+                &$_POST,
+                &$_COOKIE,
+                &$_REQUEST,
+                &$_SESSION
+            );
+            array_walk($process, self::$_sanitizeItems);
         } else {
-            $value = array_values(array_filter(array_unique((array)$value)));
-            array_walk($value, $sanitize_items);
+            if (is_array($value)) {
+                array_walk($value, self::$_sanitizeItems);
+            } else {
+                $value = htmlspecialchars(
+                    $value,
+                    ENT_QUOTES | ENT_HTML401,
+                    'utf-8'
+                );
+            }
         }
         return $value;
     }

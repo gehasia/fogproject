@@ -42,6 +42,7 @@ class TaskType extends FOGController
         'type' => 'ttType',
         'isAdvanced' => 'ttIsAdvanced',
         'access' => 'ttIsAccess',
+        'initrd' => 'ttInitrd'
     );
     /**
      * The required fields.
@@ -97,7 +98,7 @@ class TaskType extends FOGController
         }
         ksort($icons);
         ob_start();
-        echo '<select name="icon" class="fa">';
+        echo '<select class="form-control fa" id="icon" name="icon">';
         foreach ((array) $icons as $name => &$unicode) {
             printf(
                 '<option value="%s"%s> %s</option>',
@@ -142,15 +143,21 @@ class TaskType extends FOGController
     /**
      * Returns if this a capture task.
      *
-     * @return bool
+     * @param bool $nums To return ids?
+     *
+     * @return bool|array
      */
-    public function isCapture()
+    public function isCapture($nums = false)
     {
         $id = (
             $this instanceof Task ?
             'typeID' :
             'id'
         );
+
+        if ($nums) {
+            return array(2, 16);
+        }
 
         return
             $this->isValid()
@@ -166,15 +173,24 @@ class TaskType extends FOGController
     /**
      * Returns if the task needs the inits.
      *
-     * @return bool
+     * @param bool $nums To return ids?
+     *
+     * @return bool|array
      */
-    public function isInitNeededTasking()
+    public function isInitNeededTasking($nums = false)
     {
         $id = (
             $this instanceof Task ?
             'typeID' :
             'id'
         );
+
+        if ($nums) {
+            return array_diff(
+                range(1, 24),
+                array(4, 12, 13, 14)
+            );
+        }
 
         return (
             $this->isValid()
@@ -184,15 +200,21 @@ class TaskType extends FOGController
     /**
      * Returns if this is snapin only tasking.
      *
-     * @return bool
+     * @param bool $nums To return ids?
+     *
+     * @return bool|array
      */
-    public function isSnapinTasking()
+    public function isSnapinTasking($nums = false)
     {
         $id = (
             $this instanceof Task ?
             'typeID' :
             'id'
         );
+
+        if ($nums) {
+            return array(12, 13);
+        }
 
         return (
             $this->isValid()
@@ -226,15 +248,21 @@ class TaskType extends FOGController
     /**
      * Returns if this is a deploy tasking.
      *
-     * @return bool
+     * @param bool $nums To return ids?
+     *
+     * @return bool|array
      */
-    public function isDeploy()
+    public function isDeploy($nums = false)
     {
         $id = (
             $this instanceof Task ?
             'typeID' :
             'id'
         );
+
+        if ($nums) {
+            return array(1, 8, 15, 17, 24);
+        }
 
         return
             $this->isValid()
@@ -250,15 +278,21 @@ class TaskType extends FOGController
     /**
      * Returns if this is a multicast tasking.
      *
-     * @return bool
+     * @param bool $nums To return ids?
+     *
+     * @return bool|array
      */
-    public function isMulticast()
+    public function isMulticast($nums = false)
     {
         $id = (
             $this instanceof Task ?
             'typeID' :
             'id'
         );
+
+        if ($nums) {
+            return array(8);
+        }
 
         return
             $this->isValid()
