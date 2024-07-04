@@ -30,7 +30,7 @@ class MulticastTask extends FOGService
      *
      * @return array
      */
-    public static function getAllMulticastTasks(
+    public function getAllMulticastTasks(
         $root,
         $myStorageNodeID,
         $queuedStates
@@ -245,22 +245,19 @@ class MulticastTask extends FOGService
         $this->_MultiSess = new MulticastSession($this->getID());
     }
     /**
-     * Get session clients
-     *
-     * @return object
-     */
-    public function getSessClients()
-    {
-        return $this->_MultiSess->get('clients') == 0;
-    }
-    /**
      * Is this a named session
      *
      * @return bool
      */
-    public function isNamedSession()
+    public function isNamedSessionFinished()
     {
-        return (bool)$this->_isNameSess;
+        if ($this->_isNameSess
+                && $this->_MultiSess->get('clients') == 0
+                && !$this->isRunning($this->procRef)) {
+            return true;
+        } else {
+            return false;
+        }
     }
     /**
      * Returns the task ids
@@ -512,6 +509,7 @@ class MulticastTask extends FOGService
             ' --nopointopoint',
         );
         $buildcmd = array_values(array_filter($buildcmd));
+        $filelist = array();
         switch ($this->getImageType()) {
         case 1:
             switch ($this->getOSID()) {
@@ -659,7 +657,7 @@ class MulticastTask extends FOGService
                     (
                         $i == 0 ?
                         $maxwait * 60 :
-                        10
+                        $maxwait * 6
                     )
                 ),
                 rtrim(
@@ -699,7 +697,9 @@ class MulticastTask extends FOGService
     public function killTask()
     {
         $this->killTasking();
-        unlink($this->getUDPCastLogFile());
+        if (file_exists($this->getUDPCastLogFile())) {
+            unlink($this->getUDPCastLogFile());
+        }
         return true;
     }
     /**
@@ -711,12 +711,14 @@ class MulticastTask extends FOGService
     {
         Route::listem(
             'multicastsessionassociation',
+            'msID',
+            false,
             ['msID' => $this->_intID]
         );
         $MSAssocs = json_decode(
             Route::getData()
-        );
-        $TaskPercent = [];
+        )->multicastsessionassociations;
+        $TaskPercent = [0];
         foreach ($MSAssocs as &$Task) {
             $TaskPercent[] = self::getClass('Task', $Task->taskID)->get('percent');
             unset($Task);
@@ -725,5 +727,14 @@ class MulticastTask extends FOGService
         $this->_MultiSess
             ->set('percent', @max($TaskPercent))
             ->save();
+    }
+    /**
+     * Updates task ID list in case of MC session joins via PXE menu
+     *
+     * @return void
+     */
+    public function setTaskIDs($newTaskIDs)
+    {
+        $this->_taskIDs = $newTaskIDs;
     }
 }

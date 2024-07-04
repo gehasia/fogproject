@@ -34,7 +34,7 @@ class SiteManagementPage extends FOGPage
         /**
          * The name to give.
          */
-        $this->name = 'Site Control Management';
+        $this->name = _('Site Control Management');
         /**
          * Add this page to the PAGES_WITH_OBJECTS hook event.
          */
@@ -92,12 +92,12 @@ class SiteManagementPage extends FOGPage
         );
         $this->attributes = array(
             array(
-                'class' => 'filter-false',
+                'class' => 'parser-false filter-false',
                 'width' => 16
             ),
             array(),
             array(),
-            array('class' => 'filter-false'),
+            array('class' => 'parser-false filter-false'),
         );
         /**
          * Lambda function to return data either by list or search.
@@ -461,13 +461,13 @@ class SiteManagementPage extends FOGPage
             . 'host" id="host-${host_id}" '
             . 'value="${host_id}"/>'
             . '</label>',
-            '<a href="?node=user&sub=edit&id=${host_id}">'
+            '<a href="?node=host&sub=edit&id=${host_id}">'
             . '${host_name}</a>'
         );
         $this->attributes = array(
             array(
                 'width' => 16,
-                'class' => 'filter-false'
+                'class' => 'parser-false filter-false'
             ),
             array(
                 'data-toggle' => 'tooltip',
@@ -669,7 +669,7 @@ class SiteManagementPage extends FOGPage
         $this->attributes = array(
             array(
                 'width' => 16,
-                'class' => 'filter-false'
+                'class' => 'parser-false filter-false'
             ),
             array(
                 'data-toggle' => 'tooltip',

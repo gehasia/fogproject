@@ -537,19 +537,14 @@ class Group extends FOGController
                     ->set('isDD', $Image->get('imageTypeID'))
                     ->set('storagegroupID', $StorageGroup->get('id'));
                 if ($MulticastSession->save()) {
-                    self::getClass('MulticastSessionAssociationManager')
-                        ->destroy(
-                            array(
-                                'hostID' => $hostids,
-                            )
-                        );
                     $randomnumber = mt_rand(24576, 32766) * 2;
                     while ($randomnumber == $MulticastSession->get('port')) {
                         $randomnumber = mt_rand(24576, 32766) * 2;
                     }
                     self::setSetting('FOG_UDPCAST_STARTINGPORT', $randomnumber);
                 }
-                $hostIDs = $hostids;
+                $hostIDs = array_values($hostids);
+                $hostCount = count($hostIDs);
                 $batchFields = array(
                     'name',
                     'createdBy',
@@ -620,7 +615,8 @@ class Group extends FOGController
                 );
                 $this->_createSnapinTasking($now, -1);
             } elseif ($TaskType->isDeploy()) {
-                $hostIDs = $hostids;
+                $hostIDs = array_values($hostids);
+                $hostCount = count($hostIDs);
                 $imageIDs = self::getSubObjectIDs(
                     'Host',
                     array(
@@ -633,6 +629,9 @@ class Group extends FOGController
                     false,
                     ''
                 );
+                if (!is_array($imageIDs)) {
+                    $imageIDs = array($imageIDs);
+                }
                 $batchFields = array(
                     'name',
                     'createdBy',
@@ -898,6 +897,28 @@ class Group extends FOGController
         $enforce
     ) {
         $pass = trim($pass);
+        $adpasspat = "/^\*{32}$/";
+        $adpassglobalpat = "/^#{32}$/";
+        if (preg_match($adpasspat, $pass)) {
+            $tempHost = new Host(@max($this->get('hosts')));
+            $pass = $tempHost->get('ADPass');
+            unset($tempHost);
+        } elseif (preg_match($adpassglobalpat, $pass)) {
+            $pass = self::getSubObjectIDs(
+                'Service',
+                array(
+                    'name' => array(
+                        'FOG_AD_DEFAULT_PASSWORD',
+                    ),
+                ),
+                'value',
+                false,
+                'AND',
+                'name',
+                false,
+                ''
+            );
+        }
         self::getClass('HostManager')
             ->update(
                 array(
@@ -970,15 +991,18 @@ class Group extends FOGController
      */
     protected function loadHosts()
     {
-        $this->set(
-            'hosts',
-            (array)self::getSubObjectIDs(
-                'GroupAssociation',
-                array('groupID' => $this->get('id')),
-                'hostID'
-            )
-        );
-        $this->getHostCount();
+        $groupid = $this->get('id');
+        if ($groupid > 0) {
+            $this->set(
+                'hosts',
+                (array)self::getSubObjectIDs(
+                    'GroupAssociation',
+                    array('groupID' => $groupid),
+                    'hostID'
+                )
+            );
+            $this->getHostCount();
+        }
     }
     /**
      * Loads hosts not in this group.

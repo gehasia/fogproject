@@ -170,7 +170,7 @@ class FOGFTP extends FOGGetSet
     ) {
         try {
             $this->_currentConnectionHash = password_hash(
-                serialize($this->data),
+                print_r($this->data, 1),
                 PASSWORD_BCRYPT,
                 ['cost'=>11]
             );
@@ -447,8 +447,13 @@ class FOGFTP extends FOGGetSet
         $password = null
     ) {
         try {
+            if (isset($this->_link) && gettype($this->_link) === 'object') {
+                $link_id = spl_object_id($this->_link);
+            } else {
+                $link_id = serialize($this->_link);
+            }
             $this->_currentLoginHash = password_hash(
-                serialize($this->_link),
+                $link_id,
                 PASSWORD_BCRYPT,
                 ['cost'=>11]
             );
@@ -461,6 +466,7 @@ class FOGFTP extends FOGGetSet
             if (!$password) {
                 $password = $this->get('password');
             }
+            $password = htmlspecialchars_decode($password, ENT_QUOTES | ENT_HTML401);
             if (ftp_login($this->_link, $username, $password) === false) {
                 $this->ftperror($this->data);
             }
@@ -697,7 +703,7 @@ class FOGFTP extends FOGGetSet
                 $remote_file,
                 $local_file,
                 $mode,
-                $resumepos
+                $startpos
             );
         }
         return ftp_put(
@@ -705,7 +711,7 @@ class FOGFTP extends FOGGetSet
             $remote_file,
             $local_file,
             $mode,
-            $resumepos
+            $startpos
         );
     }
     /**
@@ -805,7 +811,7 @@ class FOGFTP extends FOGGetSet
         $oldname,
         $newname
     ) {
-        if (!(ftp_rename($this->_link, $oldname, $newname)
+        if (!(@ftp_rename($this->_link, $oldname, $newname)
             || $this->put($newname, $oldname))
         ) {
             $this->ftperror($this->data);
@@ -891,7 +897,7 @@ class FOGFTP extends FOGGetSet
             $fileinfo = preg_split(
                 '#\s+#',
                 $file,
-                null,
+                -1,
                 PREG_SPLIT_NO_EMPTY
             );
             $size += (float)$fileinfo[4];

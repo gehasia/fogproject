@@ -166,7 +166,7 @@ class Host extends FOGController
         case 'additionalMACs':
         case 'pendingMACs':
             $newValue = array_map(
-                function (&$mac) {
+                function ($mac) {
                     return new MACAddress($mac);
                 },
                 (array)$value
@@ -318,14 +318,11 @@ class Host extends FOGController
                 && $CurrPriMAC[0] != $RealPriMAC
             ) {
                 self::getClass('MACAddressAssociationManager')
-                    ->update(
+                    ->destroy(
                         array(
-                            'mac' => $CurrPriMAC[0],
                             'hostID' => $this->get('id'),
-                            'primary' => 1
-                        ),
-                        '',
-                        array('primary' => 0)
+                            'mac' => $CurrPriMAC[0]
+                        )
                     );
             }
             $HostWithMAC = array_diff(
@@ -509,8 +506,6 @@ class Host extends FOGController
                 array(
                     'hostID' => $this->get('id'),
                     'pending' => 0,
-                    'mac',
-                    true
                 ),
                 'mac',
                 true
@@ -1006,7 +1001,7 @@ class Host extends FOGController
                 'hostID' => $this->get('id')
             )
         );
-        $SnapinJob = new SnapinJob(@min($sjID));
+        $SnapinJob = new SnapinJob((isset($sjID) && is_array($sjID) && count($sjID)>0) ? min($sjID) : false);
         $this->set('snapinjob', $SnapinJob);
     }
     /**
@@ -1296,7 +1291,9 @@ class Host extends FOGController
         $sessionjoin = false,
         $wol = false
     ) {
-        $taskName .= ' - ' . $this->get('name');
+        if (!$sessionjoin) {
+            $taskName .= ' - ' . $this->get('name');
+        }
         try {
             if (!$this->isValid()) {
                 throw new Exception(self::$foglang['HostNotValid']);
@@ -1427,7 +1424,7 @@ class Host extends FOGController
                 }
             }
             if ($TaskType->isMulticast()) {
-                $multicastTaskReturn = function (&$MulticastSession) {
+                $multicastTaskReturn = function ($MulticastSession) {
                     if (!$MulticastSession->isValid()) {
                         return;
                     }
@@ -1692,6 +1689,16 @@ class Host extends FOGController
         if (is_array($mac) && count($mac) > 0) {
             $mac = array_shift($mac);
         }
+        $host = $mac->getHost();
+        if ($host instanceof Host && $host->isValid()) {
+            throw new Exception(
+                sprintf(
+                    "%s: %s",
+                    _('MAC address is already in use by another host'),
+                    $host->get('name')
+                )
+            );
+        }
         return $this->set('mac', $mac);
     }
     /**
@@ -1883,7 +1890,7 @@ class Host extends FOGController
     {
         $MyMACs = $this->getMyMacs();
         $myMACs = $igMACs = $cgMACs = array();
-        $macaddress = function (&$mac) {
+        $macaddress = function ($mac) {
             if (!$mac instanceof MACAddress) {
                 $mac = new MACAddress($mac);
             }
@@ -2070,6 +2077,26 @@ class Host extends FOGController
         $productKey = '',
         $enforce = ''
     ) {
+        $adpasspat = "/^\*{32}$/";
+        $adpassglobalpat = "/^#{32}$/";
+        if (preg_match($adpasspat, $pass)) {
+            $pass = $this->get('ADPass');
+        } elseif (preg_match($adpassglobalpat, $pass)) {
+            $pass = self::getSubObjectIDs(
+                'Service',
+                array(
+                    'name' => array(
+                        'FOG_AD_DEFAULT_PASSWORD',
+                    ),
+                ),
+                'value',
+                false,
+                'AND',
+                'name',
+                false,
+                ''
+            );
+        }
         if ($this->get('id')) {
             if (!$override) {
                 if (empty($useAD)) {
@@ -2177,7 +2204,7 @@ class Host extends FOGController
                                 ),
                             'id'
                         );
-                        if (is_null($taskID)) {
+                        if (is_null($taskID) || (is_array($taskID) && count($taskID) === 0)) {
                             printf($strtoupdate, 'linux', 'linux', 'blue', 'Linux');
                         } else {
                             printf($strtoupdate, 'fos', 'cogs', 'green', 'FOS');

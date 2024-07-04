@@ -39,7 +39,7 @@ class ImageManagementPage extends FOGPage
         /**
          * The real name not using our name passer.
          */
-        $this->name = 'Image Management';
+        $this->name = self::$foglang['Image Management'];
         /**
          * Pull in the FOGPage class items.
          */
@@ -207,7 +207,7 @@ class ImageManagementPage extends FOGPage
             ),
             array(
                 'width' => 16,
-                'class' => 'filter-false'
+                'class' => 'parser-false filter-false'
             ),
             array(),
             array(
@@ -521,7 +521,7 @@ class ImageManagementPage extends FOGPage
             . '<option value="6"%s>%s</option>'
             . '</select>',
             (
-                !$imagemanage || $imagemanage == 0 ?
+                $imagemanage == 0 ?
                 ' selected' :
                 ''
             ),
@@ -551,7 +551,7 @@ class ImageManagementPage extends FOGPage
             ),
             _('Partclone Uncompressed Split 200MiB'),
             (
-                $imagemanage == 5 ?
+                !isset($imagemanage) || $imagemanage == 5 ?
                 ' selected' :
                 ''
             ),
@@ -578,7 +578,7 @@ class ImageManagementPage extends FOGPage
             . '</label>' => '<div class="input-group">'
             . '<textarea name="description" class="form-control imagedesc-input" '
             . 'id="description">'
-            . $description
+            . $desc
             . '</textarea>',
             '<label for="storagegroup">'
             . _('Storage Group')
@@ -600,7 +600,14 @@ class ImageManagementPage extends FOGPage
             . '"/>',
             '<label for="imagetype">'
             . _('Image Type')
-            . '</label>' => $ImageTypes,
+            . '</label>&nbsp;&nbsp;<i class="icon fa fa-info-circle '
+            . 'fa-lg hand" data-toggle="tooltip" data-placement="right" '
+            . 'data-html="true" data-trigger="click" style="size:+3; color:#337ab7;" '
+            . 'title="Image Type is a very important setting and can have '
+            . 'major impact on how your imaging works or fails. Please read '
+            . 'more about the different image types and how to use those '
+            . '<a href=\'https://wiki.fogproject.org/wiki/index.php?title=Managing_FOG#Images\' '
+            . 'target=\'_blank\'>in our wiki</a> before you chose!"></i>' => $ImageTypes,
             '<label for="imagepartitiontype">'
             . _('Partition')
             . '</label>' => $ImagePartitionTypes,
@@ -955,7 +962,14 @@ class ImageManagementPage extends FOGPage
             . '"/>',
             '<label for="imagetype">'
             . _('Image Type')
-            . '</label>' => $ImageTypes,
+            . '</label>&nbsp;&nbsp;<i class="icon fa fa-info-circle '
+            . 'fa-lg hand" data-toggle="tooltip" data-placement="right" '
+            . 'data-html="true" data-trigger="click" style="size:+3; color:#337ab7;" '
+            . 'title="Image Type is a very important setting and can have '
+            . 'major impact on how your imaging works or fails. Please read '
+            . 'more about the different image types and how to use those '
+            . '<a href=\'https://wiki.fogproject.org/wiki/index.php?title=Managing_FOG#Images\' '
+            . 'target=\'_blank\'>in our wiki</a> before you chose!"></i>' => $ImageTypes,
             '<label for="imagepartitiontype">'
             . _('Partition')
             . '</label>' => $ImagePartitionTypes,
@@ -1077,7 +1091,7 @@ class ImageManagementPage extends FOGPage
         );
         $this->attributes = array(
             array(
-                'class' => 'filter-false',
+                'class' => 'parser-false filter-false',
                 'width' => 16
             ),
             array(),
@@ -1189,11 +1203,11 @@ class ImageManagementPage extends FOGPage
         );
         $this->attributes = array(
             array(
-                'class' => 'filter-false',
+                'class' => 'parser-false filter-false',
                 'width' => 16
             ),
             array(
-                'class' => 'filter-false',
+                'class' => 'parser-false filter-false',
                 'width' => 16
             ),
             array(),
@@ -1569,7 +1583,7 @@ class ImageManagementPage extends FOGPage
             array(),
             array(),
             array('class' => 'text-center'),
-            array('class'=>'filter-false'),
+            array('class'=>'parser-false filter-false'),
         );
         $this->templates = array(
             '${mc_name}<br/><small>${image_name}:${os}</small>',
@@ -1606,7 +1620,7 @@ class ImageManagementPage extends FOGPage
                 'mc_name' => $MulticastSession->name,
                 'mc_count' => $MulticastSession->sessclients,
                 'image_name' => $Image->name,
-                'os' => $Image->os->name,
+                'os' => (new OS($Image->osID))->get('name'),
                 'mc_start' => self::formatTime(
                     $MulticastSession->starttime,
                     'Y-m-d H:i:s'
@@ -1659,7 +1673,7 @@ class ImageManagementPage extends FOGPage
             if (!$name) {
                 throw new Exception(_('Please input a session name'));
             }
-            if (count($count) < 1) {
+            if ($count < 1) {
                 $count = self::getClass('HostManager')->count();
             }
             if (!$image) {
@@ -1760,7 +1774,7 @@ class ImageManagementPage extends FOGPage
                 '%s%s',
                 _('Cancelled task'),
                 (
-                    count($mcid) !== 1 ?
+                    $mcid !== 1 ?
                     's' :
                     ''
                 )

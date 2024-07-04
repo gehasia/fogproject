@@ -307,7 +307,7 @@ abstract class FOGController extends FOGBase
                 print_r($value, 1)
             );
             self::info($msg);
-            if (!is_array($this->data[$key])) {
+            if (isset($this->data[$key]) && !is_array($this->data[$key])) {
                 $this->data[$key] = array($this->data[$key]);
             }
             $this->data[$key][] = $value;
@@ -835,6 +835,10 @@ abstract class FOGController extends FOGBase
                 _('Invalid type, merge to add, diff to remove')
             );
         }
+        $array = array_filter($array);
+        if (count($array) < 1) {
+            return $this;
+        }
         switch ($array_type) {
         case 'merge':
             foreach ((array)$array as &$a) {
@@ -865,7 +869,7 @@ abstract class FOGController extends FOGBase
                 $key = $this->key($key);
                 $val = $this->get($key);
                 if (!is_numeric($val) && !$val) {
-                    throw new Exception(self::$foglang['RequiredDB']);
+                    throw new Exception(self::$foglang['RequiredDB'] . ": " . $key);
                 }
                 unset($key);
             }
@@ -915,7 +919,7 @@ abstract class FOGController extends FOGBase
          */
         $whereInfo = function (
             &$value,
-            &$field
+            $field
         ) use (
             &$whereArrayAnd,
             &$c,
@@ -951,7 +955,7 @@ abstract class FOGController extends FOGBase
          */
         $joinInfo = function (
             &$fields,
-            &$class
+            $class
         ) use (
             &$join,
             &$whereArrayAnd,
@@ -1068,6 +1072,9 @@ abstract class FOGController extends FOGBase
 
         // Get the current items.
         $items = $this->get($plural);
+        if (!$items) {
+            $items = array();
+        }
         Route::ids(
             $classCall,
             [$objstr => $this->get('id')],

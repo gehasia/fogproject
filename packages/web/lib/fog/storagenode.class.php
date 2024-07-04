@@ -175,8 +175,6 @@ class StorageNode extends FOGController
             }
             unset($Failed);
         }
-
-        return $Failed;
     }
     /**
      * Loads the logfiles available on this node.
@@ -229,11 +227,16 @@ class StorageNode extends FOGController
             $items[$item]
         );
         $response = self::$FOGURLRequests->process($url);
-        return preg_grep(
-            '#dev|postdownloadscripts|ssl#',
-            json_decode($response[0], true),
-            PREG_GREP_INVERT
-        );
+        $filelist = json_decode($response[0], true);
+        if (isset($filelist) && is_array($filelist)) {
+            return preg_grep(
+                '#dev|postdownloadscripts|ssl#',
+                json_decode($response[0], true),
+                PREG_GREP_INVERT
+            );
+        } else {
+            return array();
+        }
     }
     /**
      * Loads the snapins available on this node.
@@ -303,12 +306,11 @@ class StorageNode extends FOGController
     public function getUsedSlotCount()
     {
         $countTasks = 0;
-        $multicastTaskID = array(8);
         $usedtasks = $this->get('usedtasks');
         $findTasks = array(
             'stateID' => self::getProgressState(),
             'storagenodeID' => $this->get('id'),
-            'typeID' => array_diff($this->get('usedtasks'), $multicastTaskID),
+            'typeID' => $usedtasks,
         );
         $countTasks = self::getClass('TaskManager')->count($findTasks);
         $index = array_search(8, $usedtasks);
@@ -334,12 +336,11 @@ class StorageNode extends FOGController
     public function getQueuedSlotCount()
     {
         $countTasks = 0;
-        $multicastTaskID = array(8);
         $usedtasks = $this->get('usedtasks');
         $findTasks = array(
             'stateID' => self::getQueuedStates(),
             'storagenodeID' => $this->get('id'),
-            'typeID' => array_diff($this->get('usedtasks'), $multicastTaskID),
+            'typeID' => $usedtasks,
         );
         $countTasks = self::getClass('TaskManager')->count($findTasks);
         $index = array_search(8, $usedtasks);

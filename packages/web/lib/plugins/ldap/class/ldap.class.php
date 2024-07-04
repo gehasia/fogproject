@@ -121,7 +121,7 @@ class LDAP extends FOGController
         if (!in_array($func, $nonresourcefuncs)) {
             array_unshift($args, self::$_ldapconn);
         }
-        $ret = call_user_func_array($function, $args);
+        $ret = call_user_func_array($function, array_values($args));
         return $ret;
     }
     /**
@@ -134,10 +134,17 @@ class LDAP extends FOGController
     private function _ldapUp($timeout = 3)
     {
         $ldap = 'ldap';
-        $ports = array(389, 636);
+        $ports = array_map(
+            'trim',
+            explode(
+                ',',
+                self::getSetting('LDAP_PORTS')
+            )
+        );
         $port = $this->get('port');
-        $address = $this->get('address');
+        $address = preg_replace('#^.*://#i', '', $this->get('address'));
         if (!in_array($port, $ports)) {
+            ini_set('zend.exception_ignore_args', 1);
             throw new Exception(_('Port is not valid ldap/ldaps port'));
         }
         $sock = @pfsockopen(
@@ -155,7 +162,7 @@ class LDAP extends FOGController
             '%s%s://%s',
             $ldap,
             (
-                $port == 636 ?
+                in_array($port, [ 636, 686, 3269, 7636 ]) ?
                 's' :
                 ''
             ),
@@ -225,7 +232,11 @@ class LDAP extends FOGController
         /**
          * Ensure any trailing bindings are removed
          */
-        @$this->unbind();
+        try {
+            $this->unbind();
+        } catch (TypeError $e) {
+        } catch (Throwable $e) {
+        }
         /**
          * Trim the values just incase somebody is trying
          * to break in by using spaces -- prevent dos attack I imagine.

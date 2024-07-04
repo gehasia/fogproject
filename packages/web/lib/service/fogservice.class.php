@@ -58,6 +58,12 @@ abstract class FOGService extends FOGBase
      */
     public $procPipes = array();
     /**
+     * Node IPs we have in the database to check in service startup
+     *
+     * @var array
+     */
+    public static $knownips = array();
+    /**
      * Initializes the FOGService class
      *
      * @return void
@@ -73,6 +79,18 @@ abstract class FOGService extends FOGBase
             '/%s/',
             $logpath
         );
+        Route::listem(
+            'storagenode',
+            'name',
+            false,
+            [ 'isEnabled' => [1] ]
+        );
+        $StorageNodes = json_decode(
+            Route::getData()
+        )->storagenodes;
+        foreach ((array)$StorageNodes as &$StorageNode) {
+            self::$knownips[] = $StorageNode->ip;
+        }
     }
     /**
      * Checks if the node runnning this is indeed the master
@@ -130,13 +148,18 @@ abstract class FOGService extends FOGBase
      */
     public function waitInterfaceReady()
     {
-        self::getIPAddress();
-        if (!count(self::$ips)) {
+        self::getIPAddress(true);
+        if (!count(self::$ips) || !array_intersect(self::$knownips, self::$ips)) {
             self::outall(
-                _('Interface not ready, waiting.')
+                sprintf(
+                    '%s: %s',
+                    _('Interface not ready, waiting for it to come up'),
+                    self::getSetting('FOG_WEB_HOST')
+                )
             );
             sleep(10);
             $this->waitInterfaceReady();
+            return;
         }
         foreach (self::$ips as &$ip) {
             self::outall(
@@ -212,7 +235,7 @@ abstract class FOGService extends FOGBase
      *
      * @return string
      */
-    protected static function getDateTime()
+    public static function getDateTime()
     {
         return self::niceDate()->format('m-d-y g:i:s a');
     }
@@ -413,7 +436,7 @@ abstract class FOGService extends FOGBase
                 trim($myStorageNode->{$getPathOfItemField}, '/')
             );
             if (false === $fileOverride) {
-                $myFile = basename($Obj->get($getFileOfItemField));
+                $myFile = $Obj->get($getFileOfItemField);
             } else {
                 $myFile = $fileOverride;
             }
@@ -487,8 +510,9 @@ abstract class FOGService extends FOGBase
                     );
                     self::outall(
                         sprintf(
-                            ' | %s.',
-                            _('File or path cannot be reached')
+                            ' | %s: %s',
+                            _('File or path cannot be reached'),
+                            $myAdd
                         )
                     );
                     continue;
@@ -500,10 +524,12 @@ abstract class FOGService extends FOGBase
                     ->set('username', $StorageNode->user)
                     ->set('password', $StorageNode->pass)
                     ->set('host', $StorageNode->ip);
-                if (!self::$FOGFTP->connect()) {
+                try {
+                    self::$FOGFTP->connect();
+                } catch (Exception $e) {
                     self::outall(
                         sprintf(
-                            ' * %s %s',
+                            ' * Error: %s %s',
                             _('Cannot connect to'),
                             $StorageNode->name
                         )
@@ -542,6 +568,7 @@ abstract class FOGService extends FOGBase
                 unset($remItem);
                 unset($includeFile);
                 $ftpstart = "ftp://$username:$encpassword@$ip";
+                $remotefilescheck = array();
                 if (is_file($myAdd)) {
                     $remItem = dirname("$removeDir$removeFile");
                     $path = $remItem;
@@ -594,13 +621,19 @@ abstract class FOGService extends FOGBase
                 $filescheck = array_unique(array_merge((array)$localfilescheck, (array)$remotefilescheck));
                 $testavail = -1;
                 $allsynced = true;
+
+                $resp = self::$FOGURLRequests->isAvailable($testip, 1, 80);
+                $avail = true;
+                $testavail = array_filter($resp);
+                $testavail = array_shift($testavail);
+                if (!$testavail) {
+                    $avail = false;
+                }
+
                 foreach ($filescheck as $j => &$filename) {
                     $filesequal = false;
-                    $avail = true;
                     $lindex = array_search($filename, $localfilescheck);
                     $rindex = array_search($filename, $remotefilescheck);
-                    $localfilename = sprintf('%s%s%s', $path, "/", $localfilescheck[$lindex]);
-                    $remotefilename = sprintf('%s%s%s', $remItem, "/", $remotefilescheck[$rindex]);
                     if (!is_int($rindex)) {
                         $allsynced = false;
                         self::outall(sprintf(
@@ -620,35 +653,68 @@ abstract class FOGService extends FOGBase
                             'on',
                             $nodename
                         ));
+                        $remotefilename = sprintf('%s%s%s', $remItem, "/", $remotefilescheck[$rindex]);
                         self::$FOGFTP->delete($remotefilename);
                     } else {
-                        $resp = self::$FOGURLRequests->isAvailable($testip, 1, 80);
-                        $testavail = array_filter($resp);
-                        $testavail = array_shift($testavail);
-                        if (!$testavail) {
-                            $avail = false;
-                        }
+                        $localfilename = sprintf('%s%s%s', $path, "/", $localfilescheck[$lindex]);
+                        $remotefilename = sprintf('%s%s%s', $remItem, "/", $remotefilescheck[$rindex]);
                         $localsize = self::getFilesize($localfilename);
+                        $remotesize = null;
                         if ($avail) {
-                            $remotesize = self::$FOGURLRequests->process(
+                            $rsize = self::$FOGURLRequests->process(
                                 $sizeurl,
                                 'POST',
                                 ['file' => base64_encode($remotefilename)]
                             );
-                            $remotesize = array_shift($remotesize);
-                        } else {
+                            $rsize = array_shift($rsize);
+                            if (is_int($rsize)) {
+                                $remotesize = $rsize;
+                            } else {
+                                // we should re-try HTTPS because we don't know about the storage node setup
+                                // and letting curl follow the redirect doesn't work for POST requests
+                                $sizeurl = sprintf('%s://%s/fog/status/getsize.php', 'https', $testip);
+                                $rsize = self::$FOGURLRequests->process(
+                                    $sizeurl,
+                                    'POST',
+                                    ['file' => base64_encode($remotefilename)]
+                                );
+                                $rsize = array_shift($rsize);
+                                if (is_int($rsize)) {
+                                    $remotesize = $rsize;
+                                }
+                            }
+                        }
+                        if (is_null($remotesize)) {
                             $remotesize = self::$FOGFTP->size($remotefilename);
                         }
                         if ($localsize == $remotesize) {
                             $localhash = self::getHash($localfilename);
+                            $remotehash = null;
                             if ($avail) {
-                                $remotehash = self::$FOGURLRequests->process(
+                                $rhash = self::$FOGURLRequests->process(
                                     $hashurl,
                                     'POST',
                                     ['file' => base64_encode($remotefilename)]
                                 );
-                                $remotehash = array_shift($remotehash);
-                            } else {
+                                $rhash = array_shift($rhash);
+                                if (strlen($rhash) == 64) {
+                                    $remotehash = $rhash;
+                                } else {
+                                    // we should re-try HTTPS because we don't know about the storage node setup
+                                    // and letting curl follow the redirect doesn't work for POST requests
+                                    $hashurl = sprintf('%s://%s/fog/status/gethash.php', 'https', $testip);
+                                    $rhash = self::$FOGURLRequests->process(
+                                        $hashurl,
+                                        'POST',
+                                        ['file' => base64_encode($remotefilename)]
+                                    );
+                                    $rhash = array_shift($rhash);
+                                    if (strlen($rhash) == 64) {
+                                        $remotehash = $rhash;
+                                    }
+                                }
+                            }
+                            if (is_null($remotehash)) {
                                 if ($localsize < 10485760) {
                                     $remotehash = hash_file('sha256', $ftpstart.$remotefilename);
                                 } else {
@@ -804,9 +870,10 @@ abstract class FOGService extends FOGBase
         } else {
             $log = static::$log;
         }
-        self::wlog(_('Task started'), $logname);
+        self::wlog(_('Task started')."\n", $logname);
         $descriptor = array(
             0 => array('pipe', 'r'),
+            1 => array('file', $logname, 'a'),
             2 => array('file', $log, 'a')
         );
         if ($itemType === false) {
@@ -839,7 +906,7 @@ abstract class FOGService extends FOGBase
         if ($ret) {
             return false;
         }
-        while (list(, $t) = each($output)) {
+        foreach ($output as $t) {
             if ($t != $pid) {
                 $this->killAll($t, $sig);
             }
@@ -861,12 +928,14 @@ abstract class FOGService extends FOGBase
         $filename = false
     ) {
         if ($itemType === false) {
-            foreach ((array)$this->procPipes[$index] as $i => &$close) {
-                fclose($close);
-                unset($close);
+            if (count((array)$this->procPipes) > 0) {
+                foreach ((array)$this->procPipes[$index] as $i => &$close) {
+                    fclose($close);
+                    unset($close);
+                }
+                unset($this->procPipes[$index]);
             }
-            unset($this->procPipes[$index]);
-            if ($this->isRunning($this->procRef[$index])) {
+            if (is_array($this->procRef) && $this->isRunning($this->procRef[$index])) {
                 $pid = $this->getPID($this->procRef[$index]);
                 if ($pid) {
                     $this->killAll($pid, SIGTERM);
@@ -992,9 +1061,12 @@ abstract class FOGService extends FOGBase
                 foreach ($images as $i => &$ref) {
                     if (!$this->isRunning($images[$i])) {
                         self::outall(" | Sync finished - " . print_r($images[$i], true));
-                        fclose($this->procPipes[$item][$image][$i]);
+                        foreach ($this->procPipes[$item][$image][$i] as $j => &$pipe_ref) {
+                            fclose($this->procPipes[$item][$image][$i][$j]);
+                            unset($this->procPipes[$item][$image][$i][$j]);
+                        }
                         unset($this->procPipes[$item][$image][$i]);
-                        fclose($images[$i]);
+                        proc_close($images[$i]);
                         unset($images[$i]);
                     }
                 }

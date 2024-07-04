@@ -104,6 +104,7 @@ class Snapin extends FOGController
                 ),
             )
         );
+        $sjIDs = array();
         foreach ((array) $snapinJobIDs as &$sjID) {
             $jobCount = self::getClass('SnapinTaskManager')
                 ->count(
@@ -367,7 +368,7 @@ class Snapin extends FOGController
             ->count(
                 array(
                     'snapinID' => $this->get('id'),
-                    'prmary' => 1,
+                    'primary' => 1,
                 )
             );
         if ($primaryCount < 1) {

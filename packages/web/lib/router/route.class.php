@@ -122,6 +122,15 @@ class Route extends FOGBase
         'task'
     );
     /**
+     * Names not unique
+     *
+     * @var array
+     */
+    public static $nonUniqueNameClasses = array(
+        'scheduledtask',
+        'task'
+    );
+    /**
      * Valid active tasking classes.
      *
      * @var array
@@ -339,7 +348,7 @@ class Route extends FOGBase
         ) {
             call_user_func_array(
                 self::$matches['target'],
-                self::$matches['params']
+                array_values(self::$matches['params'])
             );
             return;
         }
@@ -609,11 +618,25 @@ class Route extends FOGBase
         $vars = json_decode(
             file_get_contents('php://input')
         );
-        $exists = self::getClass($classname)
-            ->getManager()
-            ->exists($vars->name);
-        if (strtolower($class->get('name')) != $vars->name
+        $exists = false;
+        $var_name = false;
+        if (property_exists($vars, 'name')) {
+            $exists = self::getClass($classname)
+                ->getManager()
+                ->exists($vars->name);
+            $var_name = strtolower($vars->name);
+            if (!$var_name) {
+                self::setErrorMessage(
+                    _('A name must be defined if using the "name" property'),
+                    HTTPResponseCodes::HTTP_FORBIDDEN
+                );
+            }
+        }
+        $uniqueNames = !in_array($classname, self::$nonUniqueNameClasses);
+        if ($uniqueNames
             && $exists
+            && $var_name
+            && strtolower($class->get('name')) != $var_name
         ) {
             self::setErrorMessage(
                 _('Already created'),
@@ -638,12 +661,12 @@ class Route extends FOGBase
             if (isset($vars->macs)) {
                 $macsToAdd = array_diff(
                     (array)$vars->macs,
-                    $class->get('macs')
+                    $class->getMyMacs()
                 );
                 $primac = array_shift($macsToAdd);
                 $macsToRem = array_diff(
-                    $class->get('macs'),
-                    $vars->macs
+                    $class->getMyMacs(),
+                    (array)$vars->macs
                 );
                 $class
                     ->removeAddMAC($macsToRem)
@@ -852,25 +875,26 @@ class Route extends FOGBase
         try {
             $class->createImagePackage(
                 $task->taskTypeID,
-                $task->taskName,
-                $task->shutdown,
-                $task->debug,
+                isset($task->taskName) ? $task->taskName : '',
+                isset($task->shutdown) ? $task->shutdown : false,
+                isset($task->debug) ? $task->debug : false,
                 (
-                    $task->deploySnapins === true ?
+                    (isset($task->deploySnapins) && $task->deploySnapins === true) ?
                     -1 :
                     (
-                        (is_numeric($task->deploySnapins)
+                        (isset($task->deploySnapins)
+                        && is_numeric($task->deploySnapins)
                         && $task->deploySnapins > 0)
-                        || $task->deploySnapins == -1 ?
+                        || isset($task->deploySnapins) && $task->deploySnapins == -1 ?
                         $task->deploySnapins :
                         false
                     )
                 ),
                 $class instanceof Group,
-                $_SERVER['PHP_AUTH_USER'],
-                $task->passreset,
-                $task->sessionjoin,
-                $task->wol
+                isset($_SERVER['PHP_AUTH_USER']) ? $_SERVER['PHP_AUTH_USER'] : '',
+                isset($task->passreset) ? $task->passreset : '',
+                isset($task->sessionjoin) ? $task->sessionjoin : false,
+                isset($task->wol) ? $task->wol : false
             );
         } catch (\Exception $e) {
             self::setErrorMessage(
@@ -903,7 +927,8 @@ class Route extends FOGBase
         $exists = self::getClass($classname)
             ->getManager()
             ->exists($vars->name);
-        if ($exists) {
+        $uniqueNames = !in_array($classname, self::$nonUniqueNameClasses);
+        if ($exists && $uniqueNames) {
             self::setErrorMessage(
                 _('Already created'),
                 HTTPResponseCodes::HTTP_INTERNAL_SERVER_ERROR
@@ -911,9 +936,12 @@ class Route extends FOGBase
         }
         foreach ($classVars['databaseFields'] as &$key) {
             $key = $class->key($key);
+            if (!isset($vars->$key)) {
+                continue;
+            }
             $val = $vars->$key;
             if ($key == 'id'
-                || !$val
+                || null === $val
             ) {
                 continue;
             }
@@ -985,12 +1013,13 @@ class Route extends FOGBase
             }
             break;
         }
+        global $foglang;
         foreach ($classVars['databaseFieldsRequired'] as &$key) {
             $key = $class->key($key);
             $val = $class->get($key);
-            if (!is_numeric($val) && !$val) {
+            if (null === $val) {
                 self::setErrorMessage(
-                    self::$foglang['RequiredDB'],
+                    $foglang['RequiredDB'] . ": " . $key,
                     HTTPResponseCodes::HTTP_EXPECTATION_FAILED
                 );
             }
@@ -1252,6 +1281,8 @@ class Route extends FOGBase
                     'image' => $class->get('imagename')->get(),
                     'imagename' => $class->getImageName(),
                     'pingstatus' => $class->getPingCodeStr(),
+                    'pingstatuscode' => (int)$class->get('pingstatus'),
+                    'pingstatustext' => socket_strerror((int)$class->get('pingstatus')),
                     'primac' => $class->get('mac')->__toString(),
                     'macs' => $class->getMyMacs()
                 )
@@ -1305,7 +1336,7 @@ class Route extends FOGBase
                        $class->get('online') ?
                         $class->get('logfiles') :
                         []
-                    ),
+                   ),
                     'snapinfiles' => (
                         $class->get('online') ?
                         $class->get('snapinfiles') :
@@ -1323,7 +1354,7 @@ class Route extends FOGBase
                        $class->get('online') ?
                         $class->get($item) :
                         []
-                    )
+                   )
                 );
             }
             $data = FOGCore::fastmerge(
@@ -1494,7 +1525,7 @@ class Route extends FOGBase
      *
      * @return void
      */
-    public function names($class, $whereItems = [])
+    public static function names($class, $whereItems = [])
     {
         $data = [];
         $classname = strtolower($class);
@@ -1562,7 +1593,7 @@ class Route extends FOGBase
      *
      * @return void
      */
-    public function ids($class, $whereItems = [], $getField = 'id')
+    public static function ids($class, $whereItems = [], $getField = 'id')
     {
         $data = [];
         $classname = strtolower($class);
@@ -1607,7 +1638,8 @@ class Route extends FOGBase
         }
         $sql .= ' ORDER BY `'
             . (
-                $classVars['databaseFields']['name'] ?:
+                (isset($classVars['databaseFields']['name']) && $classVars['databaseFields']['name']) ?
+                $classVars['databaseFields']['name'] :
                 $classVars['databaseFields']['id']
             )
             . '` ASC';

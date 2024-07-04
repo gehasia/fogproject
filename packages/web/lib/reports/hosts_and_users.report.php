@@ -213,12 +213,12 @@ class Hosts_And_Users extends ReportManagementPage
                 'Location',
                 array('name' => $locationsearch),
                 'id'
-                );
+            );
             $locationHostIDs = self::getSubObjectIDs(
                 'LocationAssociation',
                 array('locationID' => $locationIDs),
                 'hostID'
-                );
+            );
             $groupHostIDs = array_intersect($locationHostIDs, $groupHostIDs);
         }
         if (in_array('site', (array)self::$pluginsinstalled) && $sitesearch) {
@@ -226,12 +226,12 @@ class Hosts_And_Users extends ReportManagementPage
                 'Site',
                 array('name' => $sitesearch),
                 'id'
-                );
+            );
             $siteHostIDs = self::getSubObjectIDs(
                 'SiteHostAssociation',
                 array('siteID' => $siteIDs),
                 'hostID'
-                );
+            );
             $groupHostIDs = array_intersect($siteHostIDs, $groupHostIDs);
         }
 
@@ -307,11 +307,12 @@ class Hosts_And_Users extends ReportManagementPage
                                 'username'
                             )
                         )
-
-            );
+                    );
                     break;
                 default:
-                    $this->ReportMaker->addCSVCell($Host->$classGet);
+                    if (property_exists($Host, $classGet)) {
+                        $this->ReportMaker->addCSVCell($Host->$classGet);
+                    }
                     break;
                 }
                 unset($classGet);

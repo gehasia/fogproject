@@ -38,7 +38,7 @@ class ServiceConfigurationPage extends FOGPage
      */
     public function __construct($name = '')
     {
-        $this->name = 'Service Configuration';
+        $this->name = _('Service Configuration');
         parent::__construct($this->name);
         $servicelink = sprintf(
             '?node=%s',
@@ -74,6 +74,7 @@ class ServiceConfigurationPage extends FOGPage
             "$servicelink#usercleanup" => self::$foglang['UserCleanup'],
             "$servicelink#usertracker" => self::$foglang['UserTracker'],
         );
+        $this->obj = new Service($this->id);
         self::$HookManager
             ->processEvent(
                 'SUB_MENULINK_DATA',
@@ -104,7 +105,7 @@ class ServiceConfigurationPage extends FOGPage
         $this->attributes = array(
             array(),
             array(
-                'class' => 'filter-false',
+                'class' => 'parser-false filter-false',
                 'width' => 55
             )
         );
@@ -418,7 +419,7 @@ class ServiceConfigurationPage extends FOGPage
                 $this->attributes = array(
                     array(
                         'width' => 16,
-                        'class' => 'filter-false'
+                        'class' => 'parser-false filter-false'
                     ),
                     array()
                 );
@@ -607,7 +608,7 @@ class ServiceConfigurationPage extends FOGPage
                 );
                 $this->attributes = array(
                     array(
-                        'class' => 'filter-false',
+                        'class' => 'parser-false filter-false',
                         'width' => 16
                     ),
                     array(),
@@ -630,11 +631,11 @@ class ServiceConfigurationPage extends FOGPage
                     true
                 );
                 Route::listem('greenfog');
-                $GreenFogs = json_encode(
+                $GreenFogs = json_decode(
                     Route::getData()
                 );
-                $GreenFogs = $GreenFogs->greenfogs;
-                foreach ((array)$GreenFogs as &$GreenFog) {
+                $GreenFogs = isset($GreenFogs->greenfogs) ? $GreenFogs->greenfogs : array();
+                foreach ($GreenFogs as &$GreenFog) {
                     $gftime = self::niceDate(
                         $GreenFog->hour
                         . ':'
@@ -742,7 +743,7 @@ class ServiceConfigurationPage extends FOGPage
                 );
                 $this->attributes = array(
                     array(
-                        'class' => 'filter-false',
+                        'class' => 'parser-false filter-false',
                         'width' => 16
                     ),
                     array()

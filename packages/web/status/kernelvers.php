@@ -24,26 +24,28 @@ session_write_close();
 ignore_user_abort(true);
 set_time_limit(0);
 header('Content-Type: text/event-stream');
-$url = filter_input(INPUT_GET, 'url');
-if (!$currentUser->isValid()) {
-    echo _('Unauthorized');
-    exit;
-}
-if (empty($_SERVER['HTTP_X_REQUESTED_WITH'])
-    || strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) !== 'xmlhttprequest'
-) {
-    echo _('Unauthorized');
-    exit;
-}
-if ($url) {
+
+if (isset($_POST['url'])) {
+
+    // Prevent an unauthenticated user from making arbitrary requests.
+    $unauthorized = !$currentUser->isValid() || empty($_SERVER['HTTP_X_REQUESTED_WITH'])
+        || strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) !== 'xmlhttprequest';
+
+    if ($unauthorized) {
+        echo _('Unauthorized');
+        exit;
+    }
+
     $res = $FOGURLRequests
-        ->process($url);
-    foreach ((array)$res as &$response) {
+        ->process(filter_input(INPUT_POST, 'url'));
+    foreach ((array) $res as &$response) {
         echo $response;
         unset($response);
     }
+    
     exit;
 }
+
 $kernelvers = function ($kernel) {
     $currpath = sprintf(
         '%s%sservice%sipxe%s%s',
@@ -55,9 +57,8 @@ $kernelvers = function ($kernel) {
     );
     $basepath = escapeshellarg($currpath);
     $findstr = sprintf(
-        'strings %s | grep -A1 "%s:" | tail -1 | awk \'{print $1}\'',
-        $basepath,
-        'Undefined video mode number'
+        'strings %s | grep -m 1 -oP "\d+\.\d+\.\d+(?=.*\([0-9a-zA-Z]*@)"',
+        $basepath
     );
     return shell_exec($findstr);
 };
@@ -73,3 +74,13 @@ printf(
     "bzImage32 Version: %s",
     $kernelvers('bzImage32')
 );
+if ($kernelvers('arm_Image') == null) {
+    printf(
+        "arm_Image Version: Not installed"
+    );
+} else {
+    printf(
+        "arm_Image Version: %s",
+        $kernelvers('arm_Image')
+    );
+}

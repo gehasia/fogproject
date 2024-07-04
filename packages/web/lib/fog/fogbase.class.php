@@ -438,13 +438,13 @@ abstract class FOGBase
      */
     public static function getClass($class, $data = '', $props = false)
     {
-        if (!is_string($class)) {
-            throw new Exception(_('Class name must be a string'));
-        }
         // Get all args, even unnamed args.
         $args = func_get_args();
         array_shift($args);
 
+        if (!is_string($class)) {
+            throw new Exception(_('Class name must be a string'));
+        }
         // Trim the class var
         $class = trim($class);
 
@@ -705,7 +705,7 @@ abstract class FOGBase
         $data = self::_setString($txt, $data);
         $string = sprintf(
             'FOG FATAL ERROR: %s: %s',
-            get_class($this),
+            get_called_class(),
             $data
         );
         printf('<div class="debug debug-error">%s</div>', $string);
@@ -726,7 +726,7 @@ abstract class FOGBase
         $data = self::_setString($txt, $data);
         $string = sprintf(
             'FOG ERROR: %s: %s',
-            get_class($this),
+            get_called_class(),
             $data
         );
         printf('<div class="debug debug-error">%s</div>', $string);
@@ -747,7 +747,7 @@ abstract class FOGBase
         $data = self::_setString($txt, $data);
         $string = sprintf(
             'FOG DEBUG: %s: %s',
-            get_class($this),
+            get_called_class(),
             $data
         );
         printf('<div class="debug debug-error">%s</div>', $string);
@@ -768,7 +768,7 @@ abstract class FOGBase
         $data = self::_setString($txt, $data);
         $string = sprintf(
             'FOG INFO: %s: %s',
-            get_class($this),
+            get_called_class(),
             $data
         );
         printf('<div class="debug debug-info">%s</div>', $string);
@@ -989,14 +989,13 @@ abstract class FOGBase
             $_SESSION['post_request_vals'] = array();
         }
         $sesVars = $_SESSION['post_request_vals'];
-        $setReq = function (&$val, &$key) {
-            $_POST[$key] = $val;
-            unset($val, $key);
-        };
-        if (count($sesVars) > 0) {
-            array_walk($sesVars, $setReq);
+        if (isset($sesVars) && count($sesVars) > 0) {
+            foreach ($sesVars as $key => $val) {
+                $_POST[$key] = $val;
+                unset($key, $val);
+            }
         }
-        unset($_SESSION['post_request_vals'], $sesVars, $reqVars);
+        unset($_SESSION['post_request_vals'], $sesVars);
     }
     /**
      * Set request vars particularly for post failures really.
@@ -1383,7 +1382,11 @@ abstract class FOGBase
         if (!is_string($new_key)) {
             throw new Exception(_('New key must be a string'));
         }
-        $array[$old_key] = trim($array[$old_key]);
+        $array[$old_key] = (
+            is_string($array[$old_key]) ?
+            trim($array[$old_key]) :
+            $array[$old_key]
+        );
         if (!self::$service && is_string($array[$old_key])) {
             $item = mb_convert_encoding(
                 $array[$old_key],
@@ -1534,16 +1537,30 @@ abstract class FOGBase
         $key = false,
         $enctype = 'aes-128-cbc'
     ) {
-        $iv_size = openssl_cipher_iv_length($enctype);
+        $iv_size = openssl_cipher_iv_length($enctype) * 2;
         if (false === strpos($encdata, '|')) {
             return $encdata;
         }
         $data = explode('|', $encdata);
-        $iv = pack('H*', $data[0]);
-        $encoded = pack('H*', $data[1]);
-        if (!$key && $data[2]) {
-            $key = pack('H*', $data[2]);
+        if (strlen($data[0]) != $iv_size || strlen($data[1]) != $iv_size) {
+            return $encdata;
         }
+        // add error handler to catch warnings we might get from pack() with non-hex strings
+        set_error_handler(
+            function ($severity, $message, $file, $line) {
+                throw new ErrorException($message, $severity, $severity, $file, $line);
+            }
+        );
+        try {
+            $iv = pack('H*', $data[0]);
+            $encoded = pack('H*', $data[1]);
+            if (!$key && isset($data[2]) && strlen($data[2]) == $iv_size) {
+                $key = pack('H*', $data[2]);
+            }
+        } catch (Exception $e) {
+            return $encdata;
+        }
+        restore_error_handler();
         if (empty($key)) {
             return '';
         }
@@ -1683,7 +1700,7 @@ abstract class FOGBase
         $MAClist = array();
         $MACs = $stringlist;
         $lowerAndTrim = function ($element) {
-            return filter_var(strtolower(trim($element)), FILTER_VALIDATE_MAC);
+            return strtolower(trim($element));
         };
         if (!is_array($stringlist)) {
             $MACs = array_map($lowerAndTrim, explode('|', $stringlist));
@@ -2192,7 +2209,7 @@ abstract class FOGBase
         }
         self::getIPAddress();
         exec(
-            "/sbin/ip route | grep '$ip_find' | awk -F'[ /]+' '/src/ {print $4}'",
+            "/sbin/ip route | grep '$ip_find' | awk -F'[ /]+' '/kernel.*src/ {print $4}'",
             $Interfaces,
             $retVal
         );
@@ -2221,9 +2238,9 @@ abstract class FOGBase
      *
      * @return array
      */
-    protected static function getIPAddress()
+    protected static function getIPAddress($force = false)
     {
-        if (count(self::$ips) > 0) {
+        if (!$force && count(self::$ips) > 0) {
             return self::$ips;
         }
         $output = array();
@@ -2240,25 +2257,22 @@ abstract class FOGBase
             );
         }
         natcasesort($IPs);
-        $retIPs = function (&$IP) {
+        $retIPs = array();
+        $Names = array();
+        foreach ($IPs as $IP) {
             $IP = trim($IP);
             if (!filter_var($IP, FILTER_VALIDATE_IP)) {
+                array_push($Names, $IP);
                 $IP = gethostbyname($IP);
+                if (filter_var($IP, FILTER_VALIDATE_IP)) {
+                    array_push($retIPs, $IP);
+                }
+            } else {
+                array_push($retIPs, $IP);
+                array_push($Names, gethostbyaddr($IP));
             }
-            if (filter_var($IP, FILTER_VALIDATE_IP)) {
-                return $IP;
-            }
-        };
-        $retNames = function (&$IP) {
-            $IP = trim($IP);
-            if (filter_var($IP, FILTER_VALIDATE_IP)) {
-                return gethostbyaddr($IP);
-            }
-
-            return $IP;
-        };
-        $IPs = array_map($retIPs, (array) $IPs);
-        $Names = array_map($retNames, (array) $IPs);
+        }
+        $IPs = $retIPs;
         $output = self::fastmerge(
             $IPs,
             $Names,
@@ -2303,7 +2317,7 @@ abstract class FOGBase
         $size = 0;
         if (is_dir($path)) {
             foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path)) as $file) {
-                if ($file->getFilename() != ".") {
+                if ($file->getFilename() != "." && $file->getFilename() != "..") {
                     $size += filesize($file);
                 }
             }
@@ -2354,7 +2368,12 @@ abstract class FOGBase
             $ip = $Node->get('ip');
             $nodeURLs[] = sprintf(
                 $url,
-                self::$httpproto,
+                'https',
+                $ip
+            );
+            $nodeURLs[] = sprintf(
+                $url,
+                'http',
                 $ip
             );
             unset($Node);
